@@ -15,7 +15,7 @@ async def accounting_list_active(message: types.Message):
         await message.answer("Не удалось получить данные")
 
     change_card = InlineKeyboardMarkup()
-    for i, x in enumerate(result):
+    for x in result:
         start_time = x['start_time']
         change_card.add(InlineKeyboardButton(
             text=f"{x['name']} - {start_time.strftime('%Y-%m-%d %H:%M:%S')}", callback_data=accounting_callback.new(id=x['id'])))
