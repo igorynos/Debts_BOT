@@ -89,14 +89,6 @@ def show_balance():
         print(f"{blnc['id']} {blnc['name']}  -  {blnc['balance']}")
 
 
-def report():
-    global accounting
-    if accounting is None:
-        return
-    if result(server.total_report(accounting)) is None:
-        return
-
-
 def close_accounting():
     global accounting
     if accounting is None:
@@ -120,7 +112,6 @@ if __name__ == '__main__':
                   'покупка (purchase)          - создать документ "Покупка" \n'
                   'платеж (payment)            - создать документ "Платеж" \n'
                   'баланс (balance)            - посмотреть текущий баланс \n'
-                  'отчет (report)              - отчет по расчету \n'
                   'закрыть (close)             - закрыть расчет \n'
                   'выход (exit)                - завершить программу')
         elif cmd.lower()[:3] in ('зар', 'рег', 'reg'):
@@ -153,13 +144,7 @@ if __name__ == '__main__':
                 if accounting is None:
                     continue
             show_balance()
-        elif cmd.lower()[:3] in ('отч', 'rep'):
-            if accounting is None:
-                accounting = choose_accounting()
-                if accounting is None:
-                    continue
-            report()
-        elif cmd.lower()[:3] in ('зак', 'clo'):
+        elif cmd.lower()[:3] in ('закр', 'clo'):
             if accounting is None:
                 accounting = choose_accounting()
                 if accounting is None:

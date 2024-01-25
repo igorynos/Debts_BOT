@@ -16,7 +16,14 @@ payment_doc = InlineKeyboardButton(
 merge_wallets = InlineKeyboardButton(
     "👛➕💰\nОбьединить кошельки", callback_data='merge_wallets')
 
-menu_acc = InlineKeyboardMarkup().add(purchase, payment_doc).add(merge_wallets)
+wallets_balance = InlineKeyboardButton(
+    "💸 Кошельки", callback_data='wallets_balance')
+
+total = InlineKeyboardButton(
+    "📋 Отчёт", callback_data='total')
+
+menu_acc = InlineKeyboardMarkup().add(purchase, payment_doc).add(
+    merge_wallets).add(wallets_balance, total)
 
 
 def pay_lst(message: types.Message):

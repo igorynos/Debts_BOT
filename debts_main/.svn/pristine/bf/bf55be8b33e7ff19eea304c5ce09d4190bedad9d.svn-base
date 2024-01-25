@@ -28,8 +28,8 @@ def add_payment():
 def reg_user():
     print('Регистрация нового пользователя')
     nic = input("ник (до 16 символов): ")
-    user_id = int(input("id: "))
-    result(server.reg_user(user_id, nic))
+    id = input("id: ")
+    result(server.reg_user(id, nic))
 
 
 def join_user():
@@ -89,14 +89,6 @@ def show_balance():
         print(f"{blnc['id']} {blnc['name']}  -  {blnc['balance']}")
 
 
-def report():
-    global accounting
-    if accounting is None:
-        return
-    if result(server.total_report(accounting)) is None:
-        return
-
-
 def close_accounting():
     global accounting
     if accounting is None:
@@ -120,7 +112,6 @@ if __name__ == '__main__':
                   'покупка (purchase)          - создать документ "Покупка" \n'
                   'платеж (payment)            - создать документ "Платеж" \n'
                   'баланс (balance)            - посмотреть текущий баланс \n'
-                  'отчет (report)              - отчет по расчету \n'
                   'закрыть (close)             - закрыть расчет \n'
                   'выход (exit)                - завершить программу')
         elif cmd.lower()[:3] in ('зар', 'рег', 'reg'):
@@ -153,13 +144,7 @@ if __name__ == '__main__':
                 if accounting is None:
                     continue
             show_balance()
-        elif cmd.lower()[:3] in ('отч', 'rep'):
-            if accounting is None:
-                accounting = choose_accounting()
-                if accounting is None:
-                    continue
-            report()
-        elif cmd.lower()[:3] in ('зак', 'clo'):
+        elif cmd.lower()[:3] in ('закр', 'clo'):
             if accounting is None:
                 accounting = choose_accounting()
                 if accounting is None:
@@ -167,8 +152,5 @@ if __name__ == '__main__':
             close_accounting()
         elif cmd.lower()[:3] in ('вых', 'exi'):
             break
-        elif cmd.lower()[:3] in ('set',):
-            server.set_current_accounting(None, 1)
-            print(result(server.get_current_accounting(1)))
         else:
             print('Неизвестная команда')
