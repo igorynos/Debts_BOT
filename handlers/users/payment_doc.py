@@ -35,7 +35,7 @@ async def payment_doc4(message: types.Message, state: FSMContext):
     acc_id = int(acc_id[0])
     payer = int(message.chat.id)
     rec = int(data['rec'])
-    amount = int(data['sum'])
+    amount = float(data['sum'].replace(',', '.'))
     comment = message.text
 
     server.add_payment_doc(

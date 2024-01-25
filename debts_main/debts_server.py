@@ -10,9 +10,9 @@ from data import config
 
 def try_and_log(msg):
     """
-    Декоратор выполняет метод класса. 
+    Декоратор выполняет метод класса.
     При возникновения исключения выводит в лог два сообщения
-    с текстом, который передается в декоратор как аргумент, 
+    с текстом, который передается в декоратор как аргумент,
     и с текстом исключения.
 
     Возвращает кортеж из двух элементов:
@@ -55,7 +55,7 @@ def result(res):
 # noinspection PyTypeChecker
 class DebtsServer(object):
     """
-    Класс осуществляет подключение к базе данных 
+    Класс осуществляет подключение к базе данных
     и содержит методы для работы с пользователями и расчетами
     """
 
@@ -152,7 +152,7 @@ class DebtsServer(object):
 
     @try_and_log('Ошибка при создании новой группы пользователей')
     def new_group(self, accounting, users):
-        """ 
+        """
         Метод создает новую группу пользователей для выбранного расчета
         Args:
             accounting (int): ID расчета в БД accountings.id
@@ -263,7 +263,7 @@ class DebtsServer(object):
                 'ARCHIVE' - выводятся только закрытые расчеты \n
                 'ALL' - ыводятся все расчеты
         Returns:
-            list: Список расчетов с заданным статусом. 
+            list: Список расчетов с заданным статусом.
             Каждый расчет в списке возвращаятся в виде словаря с ключами:
                 `id` идентификатор \n
                 `name` - название расчета \n
@@ -571,6 +571,7 @@ class DebtsServer(object):
         Returns:
             int: Идентификатор документа покупки в БД purchase_docs.id.
         """
+
         if bnfcr is None:
             bnfcr_repr = "ВСЕ"
             bnfcr = result(self.beneficiaries(
@@ -855,7 +856,8 @@ class DebtsServer(object):
                     cursor.execute(query, wallet['wallet'])
                     users = cursor.fetchall()
                     for user in users:
-                        query = ("SELECT time, recipient, comment, amount FROM payment_docs "
+                        query = ("SELECT time, users.user_nic AS recipient, comment, amount FROM payment_docs "
+                                 "JOIN users ON users.id = recipient "
                                  "WHERE accounting_id = %s AND payer = %s")
                         cursor.execute(query, (acc_id, user['id']))
                         docs = cursor.fetchall()

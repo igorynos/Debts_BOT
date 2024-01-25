@@ -24,7 +24,7 @@ async def purchase3(message: types.Message, state: FSMContext):
     await state.finish()
     acc_id = server.get_current_accounting(user=message.chat.id)
     purch = message.chat.id
-    amount = data['sum']
+    amount = float(data['sum'].replace(',', '.'))
     comment = message.text
 
     server.add_purchase_doc(
