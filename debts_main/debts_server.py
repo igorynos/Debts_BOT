@@ -5,6 +5,9 @@ import os
 from logging.handlers import TimedRotatingFileHandler
 from datetime import datetime
 
+from data import config
+
+
 def try_and_log(msg):
     """
     Декоратор выполняет метод класса. 
@@ -72,28 +75,36 @@ class DebtsServer(object):
                                                        backupCount=30)
         self.logger.addHandler(self.logger_handler)
         self.logger.setLevel(logging.DEBUG)
-        self.logger.info("\n****************************************************\n")
-        self.logger_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s]:  %(message)s'))
+        self.logger.info(
+            "\n****************************************************\n")
+        self.logger_handler.setFormatter(logging.Formatter(
+            '%(asctime)s [%(levelname)s]:  %(message)s'))
         self.logger.info('Запуск приложения "Долговая книга')
 
         self.cfg = configparser.ConfigParser()
         # noinspection PyBroadException
         try:
-            self.cfg.read('debts.ini')
-            self.host = self.cfg['DB']['address']
-            self.port = int(self.cfg['DB']['port'])
-            self.database = self.cfg['DB']['database']
+            self.host = config.IP
+            self.port = config.PORT
+            self.database = config.DATABASE
+            # self.cfg.read('debts.ini')
+            # self.host = self.cfg['DB']['address']
+            # self.port = int(self.cfg['DB']['port'])
+            # self.database = self.cfg['DB']['database']
         except Exception:
-            if 'DB' not in self.cfg.sections():
-                self.cfg.add_section('DB')
+            # if 'DB' not in self.cfg.sections():
+            #     self.cfg.add_section('DB')
             self.host = 'yar.diskstation.me'
             self.port = 13306
             self.database = 'bot_debts'
-            self.cfg['DB']['address'] = self.host
-            self.cfg['DB']['port'] = str(self.port)
-            self.cfg['DB']['database'] = self.database
-            with open('debts.ini', 'w') as configfile:
-                self.cfg.write(configfile)
+            # # self.cfg['DB']['address'] = config.IP
+            # # self.cfg['DB']['port'] = config.PORT
+            # # self.cfg['DB']['database'] = config.DATABASE
+            # self.cfg['DB']['address'] = self.host
+            # self.cfg['DB']['port'] = str(self.port)
+            # self.cfg['DB']['database'] = self.database
+            # with open('debts.ini', 'w') as configfile:
+            #     self.cfg.write(configfile)
 
         self.connection = None
         self.logger.info(f'Подключение к базе данных {self.database} '
@@ -136,7 +147,8 @@ class DebtsServer(object):
             self.logger.info(f'query={query}"')
             cursor.execute(query, [user_id, nic])
             self.connection.commit()
-            self.logger.info(f"Зарегистрирован новый пользователь {nic} (id: {user_id})")
+            self.logger.info(
+                f"Зарегистрирован новый пользователь {nic} (id: {user_id})")
 
     @try_and_log('Ошибка при создании новой группы пользователей')
     def new_group(self, accounting, users):
@@ -170,12 +182,14 @@ class DebtsServer(object):
             wallet_name (str, optional): Имя кошелька. По умолчанию: ник пользователя.
         Returns:
             int: ID кошелька в БД wallet_balance.id
-        """        
+        """
         with self.connection.cursor() as cursor:
             if wallet_name is None:
-                cursor.execute("SELECT user_nic FROM users WHERE id = %s", user)
+                cursor.execute(
+                    "SELECT user_nic FROM users WHERE id = %s", user)
                 wallet_name = cursor.fetchone()['user_nic']
-            cursor.execute("INSERT INTO wallet_balance (balance, name) VALUES (0, %s)", wallet_name)
+            cursor.execute(
+                "INSERT INTO wallet_balance (balance, name) VALUES (0, %s)", wallet_name)
             self.connection.commit()
             cursor.execute('SELECT LAST_INSERT_ID() AS id')
             self.logger.info(f"Создан новый кошелек {wallet_name}")
@@ -189,14 +203,15 @@ class DebtsServer(object):
             accounting (int): ID расчета в БД accountings.id
             users (list(int)): Список идентификаторов пользователей
             wallets (list(int)): Список идентификаторов кошельков
-        """        
+        """
         if isinstance(users, int):
             users = [users]
             wallets = [wallets]
         with self.connection.cursor() as cursor:
             query = "INSERT INTO wallets (user_id, accounting_id, wallet) VALUES " + \
                     ", ".join(["(%s, %s, %s)"] * len(users))
-            args = [[users[i], accounting, wallets[i]][j] for i in range(len(users)) for j in range(3)]
+            args = [[users[i], accounting, wallets[i]][j]
+                    for i in range(len(users)) for j in range(3)]
             cursor.execute(query, args)
             self.connection.commit()
             self.logger.info(f"Участникам {', '.join(map(str, users))} "
@@ -225,10 +240,12 @@ class DebtsServer(object):
             result(self.new_group(accounting_id, users))
             query = "INSERT INTO user_balance (user_id, accounting_id, balance) VALUES " + \
                     ", ".join(["(%s, %s, %s)"] * len(users))
-            args = [[user, accounting_id, 0][i] for user in users for i in range(3)]
+            args = [[user, accounting_id, 0][i]
+                    for user in users for i in range(3)]
             cursor.execute(query, args)
             self.connection.commit()
-            self.logger.info(f"К расчету {accounting_id} добавлены участники {', '.join(map(str, users))}")
+            self.logger.info(
+                f"К расчету {accounting_id} добавлены участники {', '.join(map(str, users))}")
             wallets = []
             for user in users:
                 wallets.append(result(self.new_wallet(user)))
@@ -252,7 +269,7 @@ class DebtsServer(object):
                 `name` - название расчета \n
                 `start_time` время открытия \n
                 `end_time` время закрыимя
-                      
+
         """
         with self.connection.cursor() as cursor:
             query = "SELECT * FROM accountings "
@@ -282,7 +299,8 @@ class DebtsServer(object):
                 new_bnfcr_group += 1
             query = "INSERT INTO beneficiaries (bnfcr_group, user_id) VALUES " + \
                     ", ".join(["(%s, %s)"] * len(users))
-            args = [[new_bnfcr_group, user][i] for user in users for i in range(2)]
+            args = [[new_bnfcr_group, user][i]
+                    for user in users for i in range(2)]
             cursor.execute(query, args)
             self.connection.commit()
             self.logger.info(f"Создано новое множество бенефициаров {new_bnfcr_group}. "
@@ -308,7 +326,8 @@ class DebtsServer(object):
                 query = "SELECT bnfcr_group FROM beneficiaries " \
                         "WHERE user_id = %s"
                 cursor.execute(query, user)
-                bnfcr_set &= set(map(lambda x: x['bnfcr_group'], cursor.fetchall()))
+                bnfcr_set &= set(
+                    map(lambda x: x['bnfcr_group'], cursor.fetchall()))
                 if len(bnfcr_set) == 0:
                     return result(self.new_beneficiaries(users))
             else:
@@ -336,7 +355,8 @@ class DebtsServer(object):
         balance = result(self.get_wallet_balance(acc_id))
         for blnc in balance:
             if abs(blnc['balance']) >= 1:
-                raise Exception('Невозможно закрыть расчет с ненулевым балансом')
+                raise Exception(
+                    'Невозможно закрыть расчет с ненулевым балансом')
         with self.connection.cursor() as cursor:
             query = "UPDATE accountings SET end_time = NOW()" \
                     "WHERE id = %s"
@@ -396,7 +416,8 @@ class DebtsServer(object):
             query = "UPDATE purchase_docs SET bnfcr_group = %s WHERE id = %s"
             cursor.execute(query, [bnfcr, doc])
             self.connection.commit()
-            self.logger.info(f"Пользователь {user} добавлен к списку бенефициаров документа покупки {doc}")
+            self.logger.info(
+                f"Пользователь {user} добавлен к списку бенефициаров документа покупки {doc}")
             self.post_purchase_doc(acc_id, doc, reject=False)
 
     # noinspection PyTypeChecker
@@ -447,9 +468,11 @@ class DebtsServer(object):
             cursor.execute(query, [acc_id, user])
             self.connection.commit()
             if acc_id is None:
-                self.logger.info(f"Пользователю {user} сброшен номер текущего расчета")
+                self.logger.info(
+                    f"Пользователю {user} сброшен номер текущего расчета")
             else:
-                self.logger.info(f"Пользователю {user} присвоен номер текущего расчета {acc_id}")
+                self.logger.info(
+                    f"Пользователю {user} присвоен номер текущего расчета {acc_id}")
 
     # noinspection PyTypeChecker
     @try_and_log('Ошибка получения номера текущего расчета')
@@ -505,7 +528,8 @@ class DebtsServer(object):
                 docs = cursor.fetchall()
                 for doc in docs:
                     result(self.add_user_to_purchase(acc_id, user, doc['id']))
-            self.logger.info(f"Пользователь {user} добавлен к расчету {acc_id}")
+            self.logger.info(
+                f"Пользователь {user} добавлен к расчету {acc_id}")
             result(self.set_current_accounting(acc_id, user))
             if wallet is None:
                 wallet = result(self.new_wallet(user))
@@ -513,8 +537,8 @@ class DebtsServer(object):
             result(self.assign_wallet(acc_id, user, wallet))
             self.update_wallet_balance(acc_id)
 
-
     # noinspection PyTypeChecker
+
     @try_and_log("Ошибка проверки пользователя")
     def check_user(self, acc_id, user):
         """
@@ -549,7 +573,8 @@ class DebtsServer(object):
         """
         if bnfcr is None:
             bnfcr_repr = "ВСЕ"
-            bnfcr = result(self.beneficiaries(result(self.get_group_users(acc_id))))
+            bnfcr = result(self.beneficiaries(
+                result(self.get_group_users(acc_id))))
         else:
             bnfcr_repr = str(bnfcr)
         result(self.check_user(acc_id, purchaser))
@@ -616,16 +641,20 @@ class DebtsServer(object):
             for user in users:
                 query = "SELECT balance FROM user_balance WHERE user_id = %s AND accounting_id = %s"
                 cursor.execute(query, [user['user_id'], acc_id])
-                user['balance'] = round(cursor.fetchone()['balance'] - sign * document['amount'] / len(users), 2)
+                user['balance'] = round(
+                    cursor.fetchone()['balance'] - sign * document['amount'] / len(users), 2)
                 if user['user_id'] == document['purchaser']:
                     user['balance'] += sign * document['amount']
                 query = "UPDATE user_balance SET balance = %s WHERE user_id = %s AND accounting_id = %s"
-                cursor.execute(query, [user['balance'], user['user_id'], acc_id])
-            cursor.execute("UPDATE purchase_docs SET posted = %s WHERE id = %s", [not reject, doc_id])
+                cursor.execute(
+                    query, [user['balance'], user['user_id'], acc_id])
+            cursor.execute("UPDATE purchase_docs SET posted = %s WHERE id = %s", [
+                           not reject, doc_id])
             self.connection.commit()
             self.update_wallet_balance(acc_id)
             if reject:
-                self.logger.info(f"Отменено проведение документа покупки {doc_id}")
+                self.logger.info(
+                    f"Отменено проведение документа покупки {doc_id}")
             else:
                 self.logger.info(f"Проведен документ покупки {doc_id}")
 
@@ -646,19 +675,23 @@ class DebtsServer(object):
             doc = cursor.fetchone()
             query = "SELECT balance FROM user_balance WHERE user_id = %s AND accounting_id = %s"
             cursor.execute(query, [doc['payer'], acc_id])
-            balance = round(cursor.fetchone()['balance'] + sign * doc['amount'], 2)
+            balance = round(cursor.fetchone()[
+                            'balance'] + sign * doc['amount'], 2)
             query = "UPDATE user_balance SET balance = %s WHERE user_id = %s AND accounting_id = %s"
             cursor.execute(query, [balance, doc['payer'], acc_id])
             query = "SELECT balance FROM user_balance WHERE user_id = %s AND accounting_id = %s"
             cursor.execute(query, [doc['recipient'], acc_id])
-            balance = round(cursor.fetchone()['balance'] - sign * doc['amount'], 2)
+            balance = round(cursor.fetchone()[
+                            'balance'] - sign * doc['amount'], 2)
             query = "UPDATE user_balance SET balance = %s WHERE user_id = %s AND accounting_id = %s"
             cursor.execute(query, [balance, doc['recipient'], acc_id])
-            cursor.execute(f"UPDATE payment_docs SET posted = {not reject} WHERE id = {doc_id}")
+            cursor.execute(
+                f"UPDATE payment_docs SET posted = {not reject} WHERE id = {doc_id}")
             self.connection.commit()
             self.update_wallet_balance(acc_id)
             if reject:
-                self.logger.info(f"Отменено проведение документа пплатежа {doc_id}")
+                self.logger.info(
+                    f"Отменено проведение документа пплатежа {doc_id}")
             else:
                 self.logger.info(f"Проведен документ пплатежа {doc_id}")
 
@@ -680,7 +713,8 @@ class DebtsServer(object):
                 query = "UPDETE payment_docs SET posted = FALSE WHERE accounting_id = %s"
                 cursor.execute(query, acc_id)
                 self.connection.commit()
-                self.logger.info(f"Отненено проведение всех документов расчета {acc_id}")
+                self.logger.info(
+                    f"Отненено проведение всех документов расчета {acc_id}")
             else:
                 query = "SELECT id FROM purchase_docs WHERE accounting_id = %s"
                 cursor.execute(query, acc_id)
@@ -715,7 +749,8 @@ class DebtsServer(object):
                 balance = cursor.fetchone()['balance']
                 query = "UPDATE wallet_balance SET balance = %s WHERE id = %s"
                 cursor.execute(query, [balance, wallet['id']])
-                self.logger.info(f"Обновлен баланс кошелька {wallet['id']}: {balance}")
+                self.logger.info(
+                    f"Обновлен баланс кошелька {wallet['id']}: {balance}")
             self.connection.commit()
 
     @try_and_log("Ошибка получения баланса")
@@ -758,7 +793,8 @@ class DebtsServer(object):
             if wallet_list is not None:
                 if isinstance(wallet_list, int):
                     wallet_list = (wallet_list,)
-                query += "AND id in(" + ", ".join(['%s'] * len(wallet_list)) + ")"
+                query += "AND id in(" + \
+                    ", ".join(['%s'] * len(wallet_list)) + ")"
                 args += wallet_list
             cursor.execute(query, args)
             res = cursor.fetchall()
@@ -791,7 +827,8 @@ class DebtsServer(object):
             with open(f"Reports/{file_name}", 'w') as report:
                 report.write(f'Отчет по расчету "{res["name"]}" \n')
                 report.write(f'время начала: {res["start_time"]} \n')
-                report.write(f'время окончания: {res["end_time"] if res["end_time"] is not None else "-" } \n')
+                report.write(
+                    f'время окончания: {res["end_time"] if res["end_time"] is not None else "-" } \n')
                 report.write(f"\nПОКУПКИ\n")
                 for wallet in wallets:
                     query = ("SELECT users.id, users.user_nic FROM wallets "
@@ -805,10 +842,11 @@ class DebtsServer(object):
                         cursor.execute(query, (acc_id, user['id']))
                         docs = cursor.fetchall()
                         if len(docs) == 0:
-                           continue
+                            continue
                         report.write(f"  Покупки {user['user_nic']} \n")
                         for doc in docs:
-                            report.write(f"    {doc['time']}:     {doc['comment']}  -  {doc['amount']} \n")
+                            report.write(
+                                f"    {doc['time']}:     {doc['comment']}  -  {doc['amount']} \n")
                 report.write(f"\nПЛАТЕЖИ\n")
                 for wallet in wallets:
                     query = ("SELECT users.id, users.user_nic FROM wallets "
@@ -822,14 +860,15 @@ class DebtsServer(object):
                         cursor.execute(query, (acc_id, user['id']))
                         docs = cursor.fetchall()
                         if len(docs) == 0:
-                           continue
+                            continue
                         report.write(f"  Платежи {user['user_nic']} \n")
                         for doc in docs:
                             report.write(f"    {doc['time']}:    {doc['recipient']}  "
                                          f"({doc['comment']})  -  {doc['amount']} \n")
                 report.write(f"\nБАЛАНС\n")
                 for wallet in wallets:
-                    report.write(f"  {wallet['name']}  -  {wallet['balance']} \n")
-                self.logger.info(f"Отчет по расчету {acc_id} сохранен в файле {file_name}")
+                    report.write(
+                        f"  {wallet['name']}  -  {wallet['balance']} \n")
+                self.logger.info(
+                    f"Отчет по расчету {acc_id} сохранен в файле {file_name}")
             return file_name
-
