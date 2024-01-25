@@ -11,13 +11,13 @@ purchase = InlineKeyboardButton(
     "🛒 Покупки", callback_data='purchase')
 
 payment_doc = InlineKeyboardButton(
-    "🧾 Платёж", callback_data='payment_doc')
+    "💸 Платёж", callback_data='payment_doc')
 
 merge_wallets = InlineKeyboardButton(
-    "👛➕💰\nОбьединить кошельки", callback_data='merge_wallets')
+    "➕ Обьединить кошельки", callback_data='merge_wallets')
 
 wallets_balance = InlineKeyboardButton(
-    "💸 Кошельки", callback_data='wallets_balance')
+    "👛 Кошельки", callback_data='wallets_balance')
 
 total = InlineKeyboardButton(
     "📋 Отчёт", callback_data='total')
