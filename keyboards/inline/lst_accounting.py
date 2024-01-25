@@ -21,8 +21,6 @@ async def accounting_list_active(message: types.Message):
             text=f"{x['name']} - {start_time.strftime('%Y-%m-%d %H:%M:%S')}", callback_data=accounting_callback.new(id=x['id'])))
     change_card.add(InlineKeyboardButton(
         "➕ Создать новый", callback_data='new_accounting'))
-    change_card.add(InlineKeyboardButton(
-        "◀️ Отмена", callback_data='main_menu'))
     await message.answer("Активные расчёты:", reply_markup=change_card)
 
 
