@@ -30,5 +30,5 @@ async def purchase3(message: types.Message, state: FSMContext):
     server.add_purchase_doc(
         acc_id=acc_id[0], purchaser=purch, amount=amount, comment=comment)
 
-    await message.answer(f'Покупка {comment} на сумму {amount} добавленна')
+    await message.answer(f'Покупка {comment} на сумму {amount} добавлена')
     await active_acc(message)
