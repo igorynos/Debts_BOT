@@ -342,8 +342,13 @@ class DebtsServer(object):
                 else:
                     return result(self.new_beneficiaries(users))
 
+    @try_and_log("Ошибкаchar")
+    def free_users(self, acc_id):
+        pass
+
     @try_and_log("Ошибка закрытия расчета")
     def close_accounting(self, acc_id):
+
         """
         Закрывает заданный расчет. \n
         Если в нем ненулевой баланс (более одного рубля), вызывается исключение
