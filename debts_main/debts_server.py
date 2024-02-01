@@ -150,6 +150,20 @@ class DebtsServer(object):
             self.logger.info(
                 f"Зарегистрирован новый пользователь {nic} (id: {user_id})")
 
+    @try_and_log('Ошибка подучения имени пользователя')
+    def user_name(self, user):
+        """
+        Метод возвращает имя пользователя
+        Args:
+            users (int): ID пользователя в БД users.id
+        Returns:
+            str: Имя пользователя
+        """
+        with self.connection.cursor() as cursor:
+            query = "SELECT user_nic FROM users WHERE id = %s"
+            cursor.execute(query, user)
+            return cursor.fetchone()['user_nic']
+
     @try_and_log('Ошибка при создании новой группы пользователей')
     def new_group(self, accounting, users):
         """
@@ -188,12 +202,25 @@ class DebtsServer(object):
                 cursor.execute(
                     "SELECT user_nic FROM users WHERE id = %s", user)
                 wallet_name = cursor.fetchone()['user_nic']
-            cursor.execute(
-                "INSERT INTO wallet_balance (balance, name) VALUES (0, %s)", wallet_name)
+            cursor.execute("INSERT INTO wallet_balance (balance, name) VALUES (0, %s)", wallet_name)
             self.connection.commit()
             cursor.execute('SELECT LAST_INSERT_ID() AS id')
             self.logger.info(f"Создан новый кошелек {wallet_name}")
             return cursor.fetchone()['id']
+
+    @try_and_log('Ошибка подучения имени пользователя')
+    def wallet_name(self, wallet):
+        """
+        Метод возвращает имя пользователя
+        Args:
+            wallet (int): ID кошелька в БД wallet_balance.id
+        Returns:
+            str: Имя кошелька
+        """
+        with self.connection.cursor() as cursor:
+            query = "SELECT name FROM wallet_balance WHERE id = %s"
+            cursor.execute(query, wallet)
+            return cursor.fetchone()['name']
 
     @try_and_log('Ошибка присвоения пользователям кошельков')
     def assign_wallet(self, accounting, users, wallets):
@@ -342,11 +369,6 @@ class DebtsServer(object):
                 else:
                     return result(self.new_beneficiaries(users))
 
-    @try_and_log("Ошибкаchar")
-    def free_users(self, acc_id):
-        ##### There is code here#####
-        pass
-
     @try_and_log("Ошибка закрытия расчета")
     def close_accounting(self, acc_id):
         """
@@ -425,7 +447,40 @@ class DebtsServer(object):
                 f"Пользователь {user} добавлен к списку бенефициаров документа покупки {doc}")
             self.post_purchase_doc(acc_id, doc, reject=False)
 
-    # noinspection PyTypeChecker
+
+    @try_and_log('Ошибка получения номера собственного кошелька')
+    def my_wallet(self, acc_id, user):
+        """
+            Возвращает идентификатор кошелька, к которому присединет пользователь
+            Args:
+                acc_id (int): идентификатор расчета accountings.id
+                user: идентификаторр пользователя в БД users.id
+            Returns:
+                int: идентификатор кошелька wallets.id
+        """
+        with self.connection.cursor() as cursor:
+            query = "SELECT wallet FROM wallets WHERE accounting_id = %s AND user_id = %s"
+            cursor.execute(query, (acc_id, user))
+            return cursor.fetchone()['wallet']
+
+    @try_and_log('Ошибка списка чужих кошельков')
+    def others_wallets(self, acc_id, user):
+        """
+            Возвращает список идентификаторов чужих кошельков
+            Args:
+                acc_id (int): идентификатор расчета accountings.id
+                user: идентификаторр пользователя в БД users.id
+            Returns:
+                int: идентификатор кошелька wallets.id
+        """
+        my_wallet = self.my_wallet(acc_id, user)
+        with self.connection.cursor() as cursor:
+            query = "SELECT DISTINCT wallet FROM wallets WHERE accounting_id = %s"
+            cursor.execute(query, (acc_id, user))
+            return [wlt for wlt in cursor.fetchone().values()].remove(my_wallet)
+
+
+     # noinspection PyTypeChecker
     @try_and_log('Ошибка объединения кошелков')
     def merge_wallets(self, acc_id, wallets_list, name=None):
         """
