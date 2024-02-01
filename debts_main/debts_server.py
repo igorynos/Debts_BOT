@@ -447,7 +447,6 @@ class DebtsServer(object):
                 f"Пользователь {user} добавлен к списку бенефициаров документа покупки {doc}")
             self.post_purchase_doc(acc_id, doc, reject=False)
 
-
     @try_and_log('Ошибка получения номера собственного кошелька')
     def my_wallet(self, acc_id, user):
         """
@@ -463,7 +462,7 @@ class DebtsServer(object):
             cursor.execute(query, (acc_id, user))
             return cursor.fetchone()['wallet']
 
-    @try_and_log('Ошибка списка чужих кошельков')
+    @try_and_log('Ошибка получения списка чужих кошельков')
     def others_wallets(self, acc_id, user):
         """
             Возвращает список идентификаторов чужих кошельков
