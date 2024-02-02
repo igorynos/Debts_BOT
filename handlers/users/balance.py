@@ -19,7 +19,7 @@ async def balance(message: types.Message):
 @dp.callback_query_handler(text='wallets_balance')
 async def wallets_balance(call: types.CallbackQuery):
     acc_id = server.get_current_accounting(user=call.message.chat.id)
-    sql = ("SELECT DISTINCT wallets.wallet, wallet_balance.name, wallet_balance.balance  "
+    sql = ("SELECT DISTINCT wallets.wallet, wallet_balance.name, wallet_balance.balance"
            "FROM wallets JOIN wallet_balance ON wallets.wallet = wallet_balance.id "
            "WHERE accounting_id = %s")
     balance = db.execute(sql, acc_id[0], fetchall=True)

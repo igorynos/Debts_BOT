@@ -34,8 +34,7 @@ def pay_lst(message: types.Message):
 
     for x in lst_users[0]:
         if x != message.chat.id:
-            sql = "SELECT user_nic FROM users WHERE id=%s"
-            nic = db.execute(sql, parameters=(x), fetchall=True)
+            nic = server.user_name(x)
 
             change_card.add(InlineKeyboardButton(
                 text=f"{nic[0][0]}", callback_data=pay_lst_callback.new(id=x)))
@@ -54,8 +53,7 @@ def merge_wallets_keyboard(message: types.Message, del_user=None):
 
     for x in lst_users:
         if x != message.chat.id:
-            sql = "SELECT user_nic FROM users WHERE id=%s"
-            nic = db.execute(sql, parameters=(x), fetchall=True)
+            nic = server.user_name(x)
 
             change_card.add(InlineKeyboardButton(
                 text=f"{nic[0][0]}", callback_data=merge_wallets_callback.new(id=x)))

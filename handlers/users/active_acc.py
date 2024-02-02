@@ -11,7 +11,6 @@ async def active_acc(message: types.Message):
     lst_users = server.get_group_users(acc[0])
     text = '\nУчастники расчёта:'
     for x in lst_users[0]:
-        sql = "SELECT user_nic FROM users WHERE id=%s"
-        name = db.execute(sql, parameters=(x), fetchone=True)
+        name = server.user_name(x)
         text += f"\n{name[0]}"
     await message.answer(text=f'Активный расчёт: \n{name_acc[0]}\n{text}', reply_markup=menu_acc)

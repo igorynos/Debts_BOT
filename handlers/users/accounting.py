@@ -46,8 +46,7 @@ async def accounting(call: types.CallbackQuery, callback_data: dict, state: FSMC
 
     text = f'Расчёт {name}\n'
     for i, x in enumerate(users):
-        sql2 = "SELECT user_nic FROM users WHERE id=%s"
-        nic = db.execute(sql2, parameters=(x[0]), fetchall=True)
+        nic = server.user_name(x[0])
         text += f'\n{i}. {nic[0][0]}'
     await call.message.answer(text=text, reply_markup=join_acc_1)
 
