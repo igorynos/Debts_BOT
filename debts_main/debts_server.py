@@ -164,18 +164,18 @@ class DebtsServer(object):
             cursor.execute(query, user)
             return cursor.fetchone()['user_nic']
 
-    @try_and_log('Ошибка подучения имени пользователя')
-    def accounting_name(self, accounting):
+    @try_and_log('Ошибка подучения названия расчета')
+    def accounting_name(self, acc_id):
         """
-        Метод возвращает имя пользователя
+        Метод возвращает название расчета
         Args:
-            accounting (int): ID расчета в БД accountings.id
+            acc_id (int): ID расчета в БД accountings.id
         Returns:
             str: Имя пользователя
         """
         with self.connection.cursor() as cursor:
             query = "SELECT name FROM accountings WHERE id = %s"
-            cursor.execute(query, accounting)
+            cursor.execute(query, acc_id)
             return cursor.fetchone()['name']
 
     @try_and_log('Ошибка при создании новой группы пользователей')
@@ -491,6 +491,9 @@ class DebtsServer(object):
             query = "SELECT DISTINCT wallet FROM wallets WHERE accounting_id = %s"
             cursor.execute(query, (acc_id, user))
             return [wlt for wlt in cursor.fetchone().values()].remove(my_wallet)
+
+
+
 
     @try_and_log('Ошибка получения баласов кошельков')
     def wallet_balances(self, acc_id):
