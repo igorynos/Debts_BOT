@@ -478,6 +478,23 @@ class DebtsServer(object):
             cursor.execute(query, (acc_id, user))
             return [wlt for wlt in cursor.fetchone().values()].remove(my_wallet)
 
+    @try_and_log('Ошибка получения баласов кошельков')
+    def wallet_balances(self, acc_id):
+        """
+            Возвращает словарь состоящий из имен и балансов всех кошельков расчета
+            Args:
+                acc_id (int): идентификатор расчета accountings.id
+            Returns:
+                dict: словарь: ключи - названия кошельков; значения - балансы
+        """
+        with self.connection.cursor() as cursor:
+            query = ("SELECT wallet_balance.name as name, wallet_balance.balance as balance "
+                     "FROM wallets JOIN wallet_balance ON wallets.wallet = wallet_balance.id "
+                     "WHERE accounting_id = %s")
+            cursor.execute(query, acc_id)
+            wallets = cursor.fetchall()
+            return {wallet['name']: wallet['balance'] for wallet in wallets }
+
 
      # noinspection PyTypeChecker
     @try_and_log('Ошибка объединения кошелков')

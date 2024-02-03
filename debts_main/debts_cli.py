@@ -89,6 +89,14 @@ def show_balance():
         print(f"{blnc['id']} {blnc['name']}  -  {blnc['balance']}")
 
 
+def show_wallets():
+    wallets = result(server.wallet_balances(accounting))
+    if wallets is None:
+        return
+    for name in wallets.keys():
+        print(f"{name}:    {wallets[name]}")
+
+
 def report():
     global accounting
     if accounting is None:
@@ -120,6 +128,7 @@ if __name__ == '__main__':
                   'покупка (purchase)          - создать документ "Покупка" \n'
                   'платеж (payment)            - создать документ "Платеж" \n'
                   'баланс (balance)            - посмотреть текущий баланс \n'
+                  'кошельки (wallets)          - посмотреть баланс всех кошельков \n'
                   'отчет (report)              - отчет по расчету \n'
                   'закрыть (close)             - закрыть расчет \n'
                   'выход (exit)                - завершить программу')
@@ -153,6 +162,12 @@ if __name__ == '__main__':
                 if accounting is None:
                     continue
             show_balance()
+        elif cmd.lower()[:3] in ('кош', 'wal'):
+            if accounting is None:
+                accounting = choose_accounting()
+                if accounting is None:
+                    continue
+            show_wallets()
         elif cmd.lower()[:3] in ('отч', 'rep'):
             if accounting is None:
                 accounting = choose_accounting()
