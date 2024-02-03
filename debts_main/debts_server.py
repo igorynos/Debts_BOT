@@ -155,7 +155,7 @@ class DebtsServer(object):
         """
         Метод возвращает имя пользователя
         Args:
-            users (int): ID пользователя в БД users.id
+            user (int): ID пользователя в БД users.id
         Returns:
             str: Имя пользователя
         """
@@ -163,6 +163,20 @@ class DebtsServer(object):
             query = "SELECT user_nic FROM users WHERE id = %s"
             cursor.execute(query, user)
             return cursor.fetchone()['user_nic']
+
+    @try_and_log('Ошибка подучения имени пользователя')
+    def accounting_name(self, accounting):
+        """
+        Метод возвращает имя пользователя
+        Args:
+            accounting (int): ID расчета в БД accountings.id
+        Returns:
+            str: Имя пользователя
+        """
+        with self.connection.cursor() as cursor:
+            query = "SELECT name FROM accountings WHERE id = %s"
+            cursor.execute(query, accounting)
+            return cursor.fetchone()['name']
 
     @try_and_log('Ошибка при создании новой группы пользователей')
     def new_group(self, accounting, users):
