@@ -40,6 +40,6 @@ async def payment_doc4(message: types.Message, state: FSMContext):
 
     server.add_payment_doc(
         acc_id=acc_id, recipient=rec, payer=payer, amount=amount, comment=comment)
-    nic = server.user_name(rec)
-    await message.answer(f'Перевод пользователю {nic[0][0]} на сумму {amount} совершён')
+    nic = server.user_name(rec)[0]
+    await message.answer(f'Перевод пользователю {nic} на сумму {amount} совершён')
     await active_acc(message)

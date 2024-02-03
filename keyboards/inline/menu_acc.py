@@ -29,15 +29,15 @@ menu_acc = InlineKeyboardMarkup().add(purchase, payment_doc).add(
 def pay_lst(message: types.Message):
     change_card = InlineKeyboardMarkup()
 
-    acc = server.get_current_accounting(user=message.chat.id)
-    lst_users = server.get_group_users(acc[0])
+    acc = server.get_current_accounting(user=message.chat.id)[0]
+    lst_users = server.get_group_users(acc)[0]
 
-    for x in lst_users[0]:
+    for x in lst_users:
         if x != message.chat.id:
-            nic = server.user_name(x)
+            nic = server.user_name(x)[0]
 
             change_card.add(InlineKeyboardButton(
-                text=f"{nic[0][0]}", callback_data=pay_lst_callback.new(id=x)))
+                text=f"{nic}", callback_data=pay_lst_callback.new(id=x)))
     return change_card
 
 

@@ -38,8 +38,7 @@ async def create_new_accounting(message: types.Message, state: FSMContext):
 async def accounting(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
     id = callback_data.get('id')
     dict_temp_acc[f"{call.message.chat.id}"] = id
-    sql1 = "SELECT user_id FROM groups WHERE accounting_id=%s"
-    users = db.execute(sql1, parameters=(id), fetchall=True)
+    users = server.get_group_users(id)
     sql2 = "SELECT name FROM accountings WHERE id=%s"
     name = db.execute(sql2, parameters=(id), fetchall=True)
     name = name[0][0]
