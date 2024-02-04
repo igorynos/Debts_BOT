@@ -61,7 +61,7 @@ class DebtsServer(object):
     def __init__(self):
         """
         Инициализация DebtsServer. \n
-        Параметры БД считывает из файла debts.ini \n
+        Параметры БД считывает из файла .env \n
         Запускает вывод в лог Logs/debts.log.
 
         """
