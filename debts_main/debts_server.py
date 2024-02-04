@@ -652,14 +652,14 @@ class DebtsServer(object):
         else:
             with self.connection.cursor() as cursor:
                 if isinstance(acc_id, int):
-                        query = "SELECT id FROM groups WHERE accounting_id = %s AND user_id = %s"
-                        cursor.execute(query, (acc_id, user))
+                    query = "SELECT id FROM groups WHERE accounting_id = %s AND user_id = %s"
+                    cursor.execute(query, (acc_id, user))
                 else:
                     query = "SELECT id FROM users WHERE id = %s"
                     cursor.execute(query, user)
-                users = cursor.fetchall()
-                    if len(users) == 0:
-                        raise ValueError('Пользователь не входит в групу рассчета')
+                    users = cursor.fetchall()
+                if len(users) == 0:
+                    raise ValueError('Пользователь не входит в групу рассчета')
 
     # noinspection PyTypeChecker
     @try_and_log("Ошибка создания документа 'Покупка'")
