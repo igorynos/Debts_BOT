@@ -1,6 +1,6 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-from loader import db, dp
+from loader import dp
 
 from data.config import ADMINS
 

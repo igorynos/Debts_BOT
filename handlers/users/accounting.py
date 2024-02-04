@@ -1,4 +1,4 @@
-from loader import dp, db, server
+from loader import dp, server
 from aiogram import types
 from aiogram.dispatcher.storage import FSMContext
 
@@ -39,14 +39,12 @@ async def accounting(call: types.CallbackQuery, callback_data: dict, state: FSMC
     id = callback_data.get('id')
     dict_temp_acc[f"{call.message.chat.id}"] = id
     users = server.get_group_users(id)
-    sql2 = "SELECT name FROM accountings WHERE id=%s"
-    name = db.execute(sql2, parameters=(id), fetchall=True)
-    name = name[0][0]
+    name = server.accounting_name(id)[0]
 
     text = f'Расчёт {name}\n'
     for i, x in enumerate(users):
         nic = server.user_name(x[0])
-        text += f'\n{i}. {nic[0][0]}'
+        text += f'\n{i}. {nic[0]}'
     await call.message.answer(text=text, reply_markup=join_acc_1)
 
 

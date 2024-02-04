@@ -3,7 +3,7 @@ from aiogram import types
 
 from datetime import datetime
 
-from loader import db, dp, server
+from loader import dp, server
 from keyboards.inline.callback_data import accounting_callback
 
 

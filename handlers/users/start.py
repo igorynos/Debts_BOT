@@ -6,13 +6,12 @@ from .reg_user import register_new_user_1
 from keyboards.default.main_menu import main_menu
 
 
-from loader import dp, db
+from loader import dp, server
 
 
 @dp.message_handler(CommandStart())
 async def bot_start(message: types.Message, state: FSMContext):
-    sql = f"SELECT * FROM users WHERE id = '{message.from_user.id}';"
-    result = db.execute(sql, fetchone=True)
+    result = server.check_user(user=message.from_user.id)[0]
     if result is None:
         await message.answer(f"Привет, {message.from_user.full_name}!")
         await register_new_user_1(message, state=state)

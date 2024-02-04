@@ -2,7 +2,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram import types
 from keyboards.inline.callback_data import pay_lst_callback, merge_wallets_callback
 
-from loader import dp, db, server
+from loader import dp, server
 
 
 menu_acc = InlineKeyboardMarkup()
@@ -44,12 +44,13 @@ def pay_lst(message: types.Message):
 def merge_wallets_keyboard(message: types.Message, del_user=None):
     change_card = InlineKeyboardMarkup()
 
-    acc = server.get_current_accounting(user=message.chat.id)
-    lst_users = server.get_group_users(acc[0])
-    lst_users = list(lst_users[0])
+    acc = server.get_current_accounting(user=message.chat.id)[0]
+    lst_users = server.get_group_users(acc)[0]
+    lst_users = list(lst_users)
 
     if del_user is not None:
-        lst_users.remove(int(del_user))
+        for x in del_user:
+            lst_users.remove(int(x))
 
     for x in lst_users:
         if x != message.chat.id:

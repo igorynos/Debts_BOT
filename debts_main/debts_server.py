@@ -633,21 +633,31 @@ class DebtsServer(object):
     # noinspection PyTypeChecker
 
     @try_and_log("Ошибка проверки пользователя")
-    def check_user(self, acc_id, user):
+    def check_user(self, acc_id=None, user=None):
         """
-        Проверяет: входит ли пользователь в группу расчета
+        Если acc_id is not None
+        Проверяет: входит ли пользователь в группу расчета 
+        Если acc_id is None
+        Проверяет: наличие его в базе данных
         Args:
             acc_id (int): идентификатор расчета accountings.id
             user (int): Идентификатор пользователя в БД users.id
         Raises:
             ValueError: Если пользователь н входит в группу
         """
-        with self.connection.cursor() as cursor:
-            query = "SELECT user_id FROM groups WHERE accounting_id = %s"
-            cursor.execute(query, acc_id)
-            users = [usr['user_id'] for usr in cursor.fetchall()]
-            if user not in users:
-                raise ValueError('Пользователь не входит в групу рассчета')
+        if acc_id is None:
+            with self.connection.cursor() as cursor:
+                query = "SELECT * FROM users WHERE id = %s"
+                cursor.execute(query, user)
+                if cursor.fetchone() is None:
+                    raise ValueError('Пользователя нет в базе данных')
+        else:
+            with self.connection.cursor() as cursor:
+                query = "SELECT user_id FROM groups WHERE accounting_id = %s"
+                cursor.execute(query, acc_id)
+                users = [usr['user_id'] for usr in cursor.fetchall()]
+                if user not in users:
+                    raise ValueError('Пользователь не входит в групу рассчета')
 
     # noinspection PyTypeChecker
     @try_and_log("Ошибка создания документа 'Покупка'")

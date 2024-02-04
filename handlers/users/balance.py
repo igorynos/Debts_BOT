@@ -1,4 +1,4 @@
-from loader import dp, db, server
+from loader import dp, server
 from aiogram import types
 
 
