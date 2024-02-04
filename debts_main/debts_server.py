@@ -216,7 +216,8 @@ class DebtsServer(object):
                 cursor.execute(
                     "SELECT user_nic FROM users WHERE id = %s", user)
                 wallet_name = cursor.fetchone()['user_nic']
-            cursor.execute("INSERT INTO wallet_balance (balance, name) VALUES (0, %s)", wallet_name)
+            cursor.execute(
+                "INSERT INTO wallet_balance (balance, name) VALUES (0, %s)", wallet_name)
             self.connection.commit()
             cursor.execute('SELECT LAST_INSERT_ID() AS id')
             self.logger.info(f"Создан новый кошелек {wallet_name}")
@@ -486,14 +487,11 @@ class DebtsServer(object):
             Returns:
                 int: идентификатор кошелька wallets.id
         """
-        my_wallet = self.my_wallet(acc_id, user)
+        my_wallet = self.my_wallet(acc_id, user)[0]
         with self.connection.cursor() as cursor:
             query = "SELECT DISTINCT wallet FROM wallets WHERE accounting_id = %s"
-            cursor.execute(query, (acc_id, user))
-            return [wlt for wlt in cursor.fetchone().values()].remove(my_wallet)
-
-
-
+            cursor.execute(query, (acc_id))
+            return [wlt for wlt in cursor.fetchall().values()].remove(my_wallet)
 
     @try_and_log('Ошибка получения баласов кошельков')
     def wallet_balances(self, acc_id):
@@ -510,10 +508,10 @@ class DebtsServer(object):
                      "WHERE accounting_id = %s")
             cursor.execute(query, acc_id)
             wallets = cursor.fetchall()
-            return {wallet['name']: wallet['balance'] for wallet in wallets }
-
+            return {wallet['name']: wallet['balance'] for wallet in wallets}
 
      # noinspection PyTypeChecker
+
     @try_and_log('Ошибка объединения кошелков')
     def merge_wallets(self, acc_id, wallets_list, name=None):
         """

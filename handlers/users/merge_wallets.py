@@ -14,13 +14,17 @@ dict_wallets = {}
 async def merge_wallets(call: types.CallbackQuery):
     dict_wallets[f'{call.message.chat.id}'] = []
 
-    acc = server.get_current_accounting(user=call.message.chat.id)
-    sql = "SELECT id FROM wallets WHERE user_id=%s AND accounting_id=%s"
-    user_wallet = db.execute(sql, parameters=(
-        call.message.chat.id, acc[0]), fetchall=True)
-    dict_wallets[f'{call.message.chat.id}'].append(user_wallet[0][0])
+    acc = server.get_current_accounting(call.message.chat.id)[0]
+    # sql = "SELECT id FROM wallets WHERE user_id=%s AND accounting_id=%s"
+    # user_wallet = db.execute(sql, parameters=(
+    #     call.message.chat.id, acc[0]), fetchall=True)
+    user_wallet = server.others_wallets(
+        acc_id=int(acc), user=call.message.chat.id)
+    # dict_wallets[f'{call.message.chat.id}'].append(user_wallet[0])
+    # print(user_wallet)
+    # print(dict_wallets[f'{call.message.chat.id}'].append(user_wallet[0]))
 
-    await call.message.answer(text='Выберите пользователей, с которыми хотите обьединить кошельки:', reply_markup=merge_wallets_keyboard(call.message))
+    # await call.message.answer(text='Выберите пользователей, с которыми хотите обьединить кошельки:', reply_markup=merge_wallets_keyboard(call.message))
 
 
 @dp.callback_query_handler(merge_wallets_callback.filter())

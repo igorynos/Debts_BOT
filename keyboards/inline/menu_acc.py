@@ -56,7 +56,7 @@ def merge_wallets_keyboard(message: types.Message, del_user=None):
             nic = server.user_name(x)
 
             change_card.add(InlineKeyboardButton(
-                text=f"{nic[0][0]}", callback_data=merge_wallets_callback.new(id=x)))
+                text=f"{nic[0]}", callback_data=merge_wallets_callback.new(id=x)))
     change_card.add(InlineKeyboardButton(
         text=f"✅ Обьединить", callback_data='accept_merge_wallets'))
     return change_card

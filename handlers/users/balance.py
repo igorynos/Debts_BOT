@@ -13,13 +13,10 @@ async def balance(message: types.Message):
 
 @dp.callback_query_handler(text='wallets_balance')
 async def wallets_balance(call: types.CallbackQuery):
-    acc_id = server.get_current_accounting(user=call.message.chat.id)
-    sql = ("SELECT wallet_balance.balance"
-           "FROM wallets JOIN wallet_balance ON wallets.wallet = wallet_balance.id "
-           "WHERE wallets.accounting_id = %s")
-    balance = db.execute(sql, acc_id[0], fetchall=True)
-    # text = 'Баланс кошельков:\n'
-    # for x in balance:
-    #     text += f'\n{x[1]}:  {x[2]}'
+    acc_id = server.get_current_accounting(user=call.message.chat.id)[0]
+    balance = server.wallet_balances(acc_id)[0]
+    text = 'Баланс кошельков:\n'
+    for x in balance.items():
+        text += f'\n{x[0]}:  {x[1]}'
 
-    # await call.message.answer(text=text)
+    await call.message.answer(text=text)
