@@ -140,8 +140,8 @@ if __name__ == '__main__':
                   'платеж (payment)               - создать документ "Платеж" \n'
                   'баланс (balance)               - посмотреть текущий баланс \n'
                   'кошельки (wallets)             - посмотреть баланс всех кошельков \n'
-                  'мойкошелек (mywallet)          - посмотреть идентификатор моего кошелька \n'
-                  'чужиекошельки (otherswallets)  - посмотреть идентификаторы чужих кошельков \n'
+                  'мой (my)                       - посмотреть идентификатор моего кошелька \n'
+                  'чужие (others)                 - посмотреть идентификаторы чужих кошельков \n'
                   'отчет (report)                 - отчет по расчету \n'
                   'закрыть (close)                - закрыть расчет \n'
                   'выход (exit)                   - завершить программу')
@@ -181,7 +181,7 @@ if __name__ == '__main__':
                 if accounting is None:
                     continue
             show_wallets()
-        elif cmd.lower()[:3] in ('мой', 'myw'):
+        elif cmd.lower()[:3] == 'мой' or cmd.lower()[:2] == 'my':
             if accounting is None:
                 accounting = choose_accounting()
                 if accounting is None:

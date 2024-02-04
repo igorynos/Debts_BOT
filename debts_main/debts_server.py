@@ -1,5 +1,4 @@
 import pymysql
-import configparser
 import logging
 import os
 from logging.handlers import TimedRotatingFileHandler
@@ -81,30 +80,14 @@ class DebtsServer(object):
             '%(asctime)s [%(levelname)s]:  %(message)s'))
         self.logger.info('Запуск приложения "Долговая книга')
 
-        self.cfg = configparser.ConfigParser()
-        # noinspection PyBroadException
         try:
             self.host = config.IP
             self.port = config.PORT
             self.database = config.DATABASE
-            # self.cfg.read('debts.ini')
-            # self.host = self.cfg['DB']['address']
-            # self.port = int(self.cfg['DB']['port'])
-            # self.database = self.cfg['DB']['database']
-        except Exception:
-            # if 'DB' not in self.cfg.sections():
-            #     self.cfg.add_section('DB')
-            self.host = 'yar.diskstation.me'
-            self.port = 13306
-            self.database = 'bot_debts'
-            # # self.cfg['DB']['address'] = config.IP
-            # # self.cfg['DB']['port'] = config.PORT
-            # # self.cfg['DB']['database'] = config.DATABASE
-            # self.cfg['DB']['address'] = self.host
-            # self.cfg['DB']['port'] = str(self.port)
-            # self.cfg['DB']['database'] = self.database
-            # with open('debts.ini', 'w') as configfile:
-            #     self.cfg.write(configfile)
+            self.db_user = config.PGUSER
+            self.password = config.PGPASSWORD
+        except Exception as ex:
+            self.logger.error(f"Невозможно прочитать файл конфигурации:\n\t{ex}")
 
         self.connection = None
         self.logger.info(f'Подключение к базе данных {self.database} '
@@ -114,14 +97,33 @@ class DebtsServer(object):
             self.connection = pymysql.connect(
                 host=self.host,
                 port=self.port,
-                user='bot',
-                password='F28-cjr8s]bg!2eE',
+                user=self.db_user,
+                password=self.password,
                 database=self.database,
                 cursorclass=pymysql.cursors.DictCursor
             )
             self.logger.info('Подключение выполнено успешно')
         except pymysql.err.OperationalError:
             self.logger.error('Невозможно подключиться к базе данных')
+
+    @try_and_log('Ошибка исполнения внешнего запроса')
+    def execute(self, query: str, parameters: tuple = None, fetchone=False, fetchall=False, commit=False):
+        if not parameters:
+            parameters = tuple()
+
+        self.logger.info(f'query = "{query}, ({parameters})')
+        with self.connection.cursor() as cursor:
+            cursor.execute(query, parameters)
+            data = None
+
+            if commit:
+                self.connection.commit()
+            elif fetchone:
+                data = cursor.fetchone()
+            elif fetchall:
+                data = cursor.fetchall()
+
+            return data
 
     @try_and_log('Ошибка регистрации пользователя')
     def reg_user(self, user_id, nic):
@@ -139,7 +141,6 @@ class DebtsServer(object):
             self.logger.info(f'Регистрация')
             self.logger.info(f'id={user_id}, nic="{nic}"')
             query = "SELECT id FROM users WHERE id = %s"
-            self.logger.info(f'query={query}"')
             cursor.execute(query, user_id)
             if cursor.fetchone() is not None:
                 raise ValueError('Пользователь с таким id уже зарегистрирован')
@@ -147,8 +148,7 @@ class DebtsServer(object):
             self.logger.info(f'query={query}"')
             cursor.execute(query, [user_id, nic])
             self.connection.commit()
-            self.logger.info(
-                f"Зарегистрирован новый пользователь {nic} (id: {user_id})")
+            self.logger.info(f"Зарегистрирован новый пользователь {nic} (id: {user_id})")
 
     @try_and_log('Ошибка подучения имени пользователя')
     def user_name(self, user):
@@ -223,7 +223,7 @@ class DebtsServer(object):
             self.logger.info(f"Создан новый кошелек {wallet_name}")
             return cursor.fetchone()['id']
 
-    @try_and_log('Ошибка подучения имени пользователя')
+    @try_and_log('Ошибка подучения названия кошелька')
     def wallet_name(self, wallet):
         """
         Метод возвращает имя пользователя
@@ -232,10 +232,8 @@ class DebtsServer(object):
         Returns:
             str: Имя кошелька
         """
-        with self.connection.cursor() as cursor:
-            query = "SELECT name FROM wallet_balance WHERE id = %s"
-            cursor.execute(query, wallet)
-            return cursor.fetchone()['name']
+        query = "SELECT name FROM wallet_balance WHERE id = %s"
+        return result(self.execute(query, wallet, fetchone=True))['name']
 
     @try_and_log('Ошибка присвоения пользователям кошельков')
     def assign_wallet(self, accounting, users, wallets):
@@ -313,14 +311,12 @@ class DebtsServer(object):
                 `end_time` время закрыимя
 
         """
-        with self.connection.cursor() as cursor:
-            query = "SELECT * FROM accountings "
-            if status.upper() == 'ACTIVE':
-                query += "WHERE start_time IS NOT NULL AND end_time IS NULL"
-            elif status.upper() == 'ARCHIVE':
-                query += "WHERE end_time IS NOT NULL"
-            cursor.execute(query)
-            return cursor.fetchall()
+        query = "SELECT * FROM accountings "
+        if status.upper() == 'ACTIVE':
+            query += "WHERE start_time IS NOT NULL AND end_time IS NULL"
+        elif status.upper() == 'ARCHIVE':
+            query += "WHERE end_time IS NOT NULL"
+        return result(self.execute(query, fetchall=True))
 
     @try_and_log('Ошибка при создании нового множества бенефициаров')
     def new_beneficiaries(self, users):
@@ -643,10 +639,14 @@ class DebtsServer(object):
             ValueError: Если пользователь н входит в группу
         """
         with self.connection.cursor() as cursor:
-            query = "SELECT user_id FROM groups WHERE accounting_id = %s"
-            cursor.execute(query, acc_id)
-            users = [usr['user_id'] for usr in cursor.fetchall()]
-            if user not in users:
+            if isinstance(acc_id, int):
+                query = "SELECT id FROM groups WHERE accounting_id = %s AND user_id = %s"
+                cursor.execute(query, (acc_id, user))
+            else:
+                query = "SELECT id FROM users WHERE id = %s"
+                cursor.execute(query, user)
+            users = cursor.fetchall()
+            if len(users) == 0:
                 raise ValueError('Пользователь не входит в групу рассчета')
 
     # noinspection PyTypeChecker
