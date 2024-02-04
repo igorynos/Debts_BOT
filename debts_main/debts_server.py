@@ -470,7 +470,7 @@ class DebtsServer(object):
                 acc_id (int): идентификатор расчета accountings.id
                 user: идентификаторр пользователя в БД users.id
             Returns:
-                int: идентификатор кошелька wallets.id
+                int: идентификатор кошелька wallets.wallet
         """
         with self.connection.cursor() as cursor:
             query = "SELECT wallet FROM wallets WHERE accounting_id = %s AND user_id = %s"
@@ -485,13 +485,15 @@ class DebtsServer(object):
                 acc_id (int): идентификатор расчета accountings.id
                 user: идентификаторр пользователя в БД users.id
             Returns:
-                int: идентификатор кошелька wallets.id
+                lst(int): список идентификаторов кошельков wallets.wallet
         """
         my_wallet = self.my_wallet(acc_id, user)[0]
-        with self.connection.cursor() as cursor:
+        with (self.connection.cursor() as cursor):
             query = "SELECT DISTINCT wallet FROM wallets WHERE accounting_id = %s"
-            cursor.execute(query, (acc_id))
-            return [wlt for wlt in cursor.fetchall().values()].remove(my_wallet)
+            cursor.execute(query, acc_id)
+            all_wallets = [wlt['wallet'] for wlt in cursor.fetchall()]
+            all_wallets.remove(my_wallet)
+            return all_wallets
 
     @try_and_log('Ошибка получения баласов кошельков')
     def wallet_balances(self, acc_id):

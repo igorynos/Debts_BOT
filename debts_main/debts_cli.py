@@ -50,7 +50,7 @@ def choose_accounting():
     accounting_id = int(input('Введите номер расчета. 0 - чтобы создать новый  '))
 
     if accounting_id == 0:
-        name = input("Введите имя для новогорасчета: ")
+        name = input("Введите имя для нового расчета: ")
         cursor = server.connection.cursor()
         print("В системе зарегиспрированы пользователи:")
         cursor.execute("SELECT id, user_nic FROM users")
@@ -97,6 +97,16 @@ def show_wallets():
         print(f"{name}:    {wallets[name]}")
 
 
+def my_wallet():
+    usr = int(input("пользователь: "))
+    print(f"{result(server.my_wallet(accounting, usr))}")
+
+
+def others_wallets():
+    usr = int(input("пользователь: "))
+    print(f"{result(server.others_wallets(accounting, usr))}")
+
+
 def report():
     global accounting
     if accounting is None:
@@ -117,21 +127,24 @@ def close_accounting():
 if __name__ == '__main__':
     server = debts_server.DebtsServer()
     accounting = None
+    user = None
 
     while True:
         cmd = input('Ведите команду: ')
         if cmd.lower()[:3] in ('hel', 'пом'):
-            print('зарегистрировать (register) - зарегистрировать нового пользователя \n'
-                  'присоединить (join)         - присоединить пользователя к расчету \n' 
-                  'расчет (accounting)         - выбрать или создать расчет \n'
-                  'объединить (merge)          - объединить кошельки \n'
-                  'покупка (purchase)          - создать документ "Покупка" \n'
-                  'платеж (payment)            - создать документ "Платеж" \n'
-                  'баланс (balance)            - посмотреть текущий баланс \n'
-                  'кошельки (wallets)          - посмотреть баланс всех кошельков \n'
-                  'отчет (report)              - отчет по расчету \n'
-                  'закрыть (close)             - закрыть расчет \n'
-                  'выход (exit)                - завершить программу')
+            print('зарегистрировать (register)    - зарегистрировать нового пользователя \n'
+                  'присоединить (join)            - присоединить пользователя к расчету \n' 
+                  'расчет (accounting)            - выбрать или создать расчет \n'
+                  'объединить (merge)             - объединить кошельки \n'
+                  'покупка (purchase)             - создать документ "Покупка" \n'
+                  'платеж (payment)               - создать документ "Платеж" \n'
+                  'баланс (balance)               - посмотреть текущий баланс \n'
+                  'кошельки (wallets)             - посмотреть баланс всех кошельков \n'
+                  'мойкошелек (mywallet)          - посмотреть идентификатор моего кошелька \n'
+                  'чужиекошельки (otherswallets)  - посмотреть идентификаторы чужих кошельков \n'
+                  'отчет (report)                 - отчет по расчету \n'
+                  'закрыть (close)                - закрыть расчет \n'
+                  'выход (exit)                   - завершить программу')
         elif cmd.lower()[:3] in ('зар', 'рег', 'reg'):
             reg_user()
         elif cmd.lower()[:3] in ('при', 'joi'):
@@ -168,6 +181,18 @@ if __name__ == '__main__':
                 if accounting is None:
                     continue
             show_wallets()
+        elif cmd.lower()[:3] in ('мой', 'myw'):
+            if accounting is None:
+                accounting = choose_accounting()
+                if accounting is None:
+                    continue
+            my_wallet()
+        elif cmd.lower()[:3] in ('чуж', 'oth'):
+            if accounting is None:
+                accounting = choose_accounting()
+                if accounting is None:
+                    continue
+            others_wallets()
         elif cmd.lower()[:3] in ('отч', 'rep'):
             if accounting is None:
                 accounting = choose_accounting()
