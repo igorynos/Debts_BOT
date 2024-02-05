@@ -16,6 +16,8 @@ services:
       - ".env"
     networks:
       - tg_bot
+    ports:
+      - "8080:80"
 
 networks:
   tg_bot:
