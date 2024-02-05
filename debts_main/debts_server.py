@@ -24,6 +24,7 @@ def try_and_log(msg):
     def dcrtr(func):
         def wrap(self, *args, **kwargs):
             try:
+                self.connection.ping(reconnect=True)
                 return func(self, *args, **kwargs), 'OK'
             except Exception as ex:
                 dtl_msg = f"{msg}: {ex}"
@@ -633,33 +634,24 @@ class DebtsServer(object):
     @try_and_log("Ошибка проверки пользователя")
     def check_user(self, acc_id=None, user=None):
         """
-        Если acc_id is not None
-        Проверяет: входит ли пользователь в группу расчета 
-        Если acc_id is None
-        Проверяет: наличие его в базе данных
+        Если acc_id целое число, проверяет: входит ли пользователь в группу расчета.
+        Если acc_id is None, проверяет его наличие в базе таблице пользователей.
         Args:
             acc_id (int): идентификатор расчета accountings.id
             user (int): Идентификатор пользователя в БД users.id
         Raises:
-            ValueError: Если пользователь н входит в группу
+            ValueError: Если проверка не прошла
         """
-        if acc_id is None:
-            with self.connection.cursor() as cursor:
-                query = "SELECT * FROM users WHERE id = %s"
+        with self.connection.cursor() as cursor:
+            if isinstance(acc_id, int):
+                query = "SELECT id FROM groups WHERE accounting_id = %s AND user_id = %s"
+                cursor.execute(query, (acc_id, user))
+            else:
+                query = "SELECT id FROM users WHERE id = %s"
                 cursor.execute(query, user)
-                if cursor.fetchone() is None:
-                    raise ValueError('Пользователя нет в базе данных')
-        else:
-            with self.connection.cursor() as cursor:
-                if isinstance(acc_id, int):
-                    query = "SELECT id FROM groups WHERE accounting_id = %s AND user_id = %s"
-                    cursor.execute(query, (acc_id, user))
-                else:
-                    query = "SELECT id FROM users WHERE id = %s"
-                    cursor.execute(query, user)
-                    users = cursor.fetchall()
-                if len(users) == 0:
-                    raise ValueError('Пользователь не входит в групу рассчета')
+            users = cursor.fetchall()
+            if len(users) == 0:
+                raise ValueError('Проверка пользователя не прошла')
 
     # noinspection PyTypeChecker
     @try_and_log("Ошибка создания документа 'Покупка'")
