@@ -546,7 +546,7 @@ class DebtsServer(object):
                 cursor.execute(query, wallet['id'])
             self.connection.commit()
 
-    @try_and_log('Ошибка объединения кошелков')
+    @try_and_log('Ошибка выхода пользователя из кошелька')
     def leave_wallet(self, acc_id, user, name=None):
         """
         Метод для выхода пользователя из кошелька \n
@@ -580,6 +580,8 @@ class DebtsServer(object):
             cursor.execute(query, (user_balance, user_nic))
             query = "UPDATE wallet_balance SET balance = %s, name = %s WHERE id = %s"
             cursor.execute(query, (wallet_balance-user_balance, name, wallet))
+            self.connection.commit()
+            self.logger.info(f"Пользователю {user} вышел из кошелька {wallet}")
 
     # noinspection PyTypeChecker
     @try_and_log('Ошибка присвоения пользователю номера текущего расчета')
@@ -598,8 +600,7 @@ class DebtsServer(object):
                 self.logger.info(
                     f"Пользователю {user} сброшен номер текущего расчета")
             else:
-                self.logger.info(
-                    f"Пользователю {user} присвоен номер текущего расчета {acc_id}")
+                self.logger.info(f"Пользователю {user} присвоен номер текущего расчета {acc_id}")
 
     # noinspection PyTypeChecker
     @try_and_log('Ошибка получения номера текущего расчета')
