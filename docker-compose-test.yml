@@ -7,9 +7,9 @@ services:
     stop_signal: SIGINT
     build:
       context: .
-    working_dir: "/usr/src/app/${BOT_NAME:-tg_bot}"
+    working_dir: "/usr/src/app/${BOT_NAME_TEST:-tg_bot_test}"
     volumes:
-      - .:/usr/src/app/${BOT_NAME:-tg_bot}
+      - .:/usr/src/app/${BOT_NAME_TEST:-tg_bot_test}
     command: nohup python3 app.py > output.txt 2>&1 &
     restart: always
     env_file:
