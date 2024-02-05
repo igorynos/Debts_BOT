@@ -546,6 +546,41 @@ class DebtsServer(object):
                 cursor.execute(query, wallet['id'])
             self.connection.commit()
 
+    @try_and_log('Ошибка объединения кошелков')
+    def leave_wallet(self, acc_id, user, name=None):
+        """
+        Метод для выхода пользователя из кошелька \n
+        Имя нового кошелька складывается из имен кошельков в списке, разделенных символом '+'
+
+        Args:
+            acc_id: идентификатор расчета accountings.id
+            user (int): идентификатор пользователя users.id
+            name (str): Новое название кошелька после выхода пользователя
+        """
+        wallet = result(self.my_wallet(acc_id, user))
+        with self.connection.cursor() as cursor:
+            if name is None:
+                query = "SELECT user_id FROM wallets WHERE wallet = %s AND user_id != %s"
+                cursor.execute(query, (acc_id, user))
+                users = cursor.fetchall()['user_id']
+                if len(users) == 1:
+                    name = result(self.user_name(users[0]))
+                else:
+                    name = result(self.wallet_name(wallet))
+            query = "SELECT balance FROM user_balance WHERE accounting_id = %s AND user_id = %s"
+            cursor.execute(query, (acc_id, user))
+            user_balance = cursor.fetchone()['balance']
+            query = "SELECT user_nic FROM users WHERE id = %"
+            cursor.execute(query, user)
+            user_nic = cursor.fetchone()['user_nic']
+            query = "SELECT balance FROM wallet_balance WHERE id = %s"
+            cursor.execute(query, wallet)
+            wallet_balance = cursor.fetchone()['balance']
+            query = "INSERT INTO wallet_balance (balance, name) VALUES (%s, %s)"
+            cursor.execute(query, (user_balance, user_nic))
+            query = "UPDATE wallet_balance SET balance = %s, name = %s WHERE id = %s"
+            cursor.execute(query, (wallet_balance-user_balance, name, wallet))
+
     # noinspection PyTypeChecker
     @try_and_log('Ошибка присвоения пользователю номера текущего расчета')
     def set_current_accounting(self, acc_id, user):
