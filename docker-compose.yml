@@ -2,7 +2,7 @@ version: '3.3'
 
 services:
   bot:
-    image: "Debs_bot_test"
+    image: "debs_bot_test"
     container_name: "Debs_bot_test"
     build:
       context: .
