@@ -9,7 +9,7 @@ services:
     working_dir: /src/Debs_bot
     volumes:
       - .:/src/Debs_bot
-    command: python app.py
+    command: nohup python3 app.py &
     restart: always
     env_file:
       - ".env"
