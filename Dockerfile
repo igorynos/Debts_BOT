@@ -1,5 +1,5 @@
 FROM python:3.9-buster
-ENV BOT_NAME=$BOT_NAME
+ENV BOT_NAME=$BOT_NAME_TEST
 
 WORKDIR /usr/src/app/"${BOT_NAME:-tg_bot}"
 
