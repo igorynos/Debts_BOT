@@ -1,0 +1,19 @@
+version: '3.3'
+
+services:
+  bot:
+    container_name: "Debs_bot_test"
+    build:
+      context: .
+    volumes:
+      - .:/src/Debs_bot_test
+    command: python3 app.py
+    restart: always
+    env_file:
+      - ".env"
+    networks:
+      - tg_bot
+
+networks:
+  tg_bot:
+    driver: bridge

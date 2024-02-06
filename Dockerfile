@@ -1,8 +1,7 @@
 FROM python:3.9-buster
-ENV BOT_NAME=$BOT_NAME_TEST
 
-WORKDIR /usr/src/app/"${BOT_NAME:-tg_bot}"
+WORKDIR /src/Debs_bot_test
 
-COPY requirements.txt /usr/src/app/"${BOT_NAME:-tg_bot}"
-RUN pip install -r /usr/src/app/"${BOT_NAME:-tg_bot}"/requirements.txt
-COPY . /usr/src/app/"${BOT_NAME:-tg_bot}"
+COPY requirements.txt /src/Debs_bot_test
+RUN pip install -r /src/Debs_bot_test/requirements.txt
+COPY . /src/Debs_bot_test
