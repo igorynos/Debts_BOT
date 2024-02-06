@@ -2,15 +2,14 @@ version: '3.3'
 
 services:
   bot:
-    image: "${BOT_IMAGE_NAME:-tg_bot-image}"
-    container_name: "${BOT_CONTAINER_NAME:-tg_bot-container}"
-    stop_signal: SIGINT
+    image: debs_bot
+    container_name: Debs_bot
     build:
       context: .
-    working_dir: "/usr/src/app/${BOT_NAME:-tg_bot}"
+    working_dir: /src/Debs_bot
     volumes:
-      - .:/usr/src/app/${BOT_NAME:-tg_bot}
-    command: nohup python3 app.py > output.txt 2>&1 &
+      - .:/src/Debs_bot
+    command: python app.py
     restart: always
     env_file:
       - ".env"
