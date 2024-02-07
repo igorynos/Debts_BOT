@@ -487,7 +487,7 @@ class DebtsServer(object):
                 lst(int): список идентификаторов кошельков wallets.wallet
         """
         my_wallet = self.my_wallet(acc_id, user)[0]
-        with (self.connection.cursor() as cursor):
+        with self.connection.cursor() as cursor:
             query = "SELECT DISTINCT wallet FROM wallets WHERE accounting_id = %s"
             cursor.execute(query, acc_id)
             all_wallets = [wlt['wallet'] for wlt in cursor.fetchall()]
@@ -600,7 +600,8 @@ class DebtsServer(object):
                 self.logger.info(
                     f"Пользователю {user} сброшен номер текущего расчета")
             else:
-                self.logger.info(f"Пользователю {user} присвоен номер текущего расчета {acc_id}")
+                self.logger.info(
+                    f"Пользователю {user} присвоен номер текущего расчета {acc_id}")
 
     # noinspection PyTypeChecker
     @try_and_log('Ошибка получения номера текущего расчета')
