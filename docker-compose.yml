@@ -2,12 +2,12 @@ version: '3.3'
 
 services:
   bot:
-    image: "debs_bot_test"
-    container_name: "Debs_bot_test"
+    image: "debts_bot_test"
+    container_name: "Debts_bot_test"
     build:
       context: .
     volumes:
-      - .:/src/Debs_bot_test
+      - .:/src/Debts_bot_test
     command: nohup python3 app.py &
     restart: always
     env_file:

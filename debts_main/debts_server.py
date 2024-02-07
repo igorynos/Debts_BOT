@@ -600,7 +600,8 @@ class DebtsServer(object):
                 self.logger.info(
                     f"Пользователю {user} сброшен номер текущего расчета")
             else:
-                self.logger.info(f"Пользователю {user} присвоен номер текущего расчета {acc_id}")
+                self.logger.info(
+                    f"Пользователю {user} присвоен номер текущего расчета {acc_id}")
 
     # noinspection PyTypeChecker
     @try_and_log('Ошибка получения номера текущего расчета')
@@ -679,7 +680,7 @@ class DebtsServer(object):
             ValueError: Если проверка не прошла
         """
         with self.connection.cursor() as cursor:
-            if isinstance(acc_id, int):
+            if acc_id is not None:
                 query = "SELECT id FROM groups WHERE accounting_id = %s AND user_id = %s"
                 cursor.execute(query, (acc_id, user))
             else:
