@@ -1,4 +1,4 @@
-from loader import dp, db, server
+from loader import dp, server
 from aiogram import types
 from aiogram.dispatcher.storage import FSMContext
 
@@ -38,17 +38,13 @@ async def create_new_accounting(message: types.Message, state: FSMContext):
 async def accounting(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
     id = callback_data.get('id')
     dict_temp_acc[f"{call.message.chat.id}"] = id
-    sql1 = "SELECT user_id FROM groups WHERE accounting_id=%s"
-    users = db.execute(sql1, parameters=(id), fetchall=True)
-    sql2 = "SELECT name FROM accountings WHERE id=%s"
-    name = db.execute(sql2, parameters=(id), fetchall=True)
-    name = name[0][0]
+    users = server.get_group_users(id)
+    name = server.accounting_name(id)[0]
 
     text = f'Расчёт {name}\n'
     for i, x in enumerate(users):
-        sql2 = "SELECT user_nic FROM users WHERE id=%s"
-        nic = db.execute(sql2, parameters=(x[0]), fetchall=True)
-        text += f'\n{i}. {nic[0][0]}'
+        nic = server.user_name(x[0])
+        text += f'\n{i}. {nic[0]}'
     await call.message.answer(text=text, reply_markup=join_acc_1)
 
 

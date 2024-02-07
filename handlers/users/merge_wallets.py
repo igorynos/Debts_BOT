@@ -1,4 +1,4 @@
-from loader import dp, db, server
+from loader import dp, server
 from aiogram import types
 from aiogram.dispatcher.storage import FSMContext
 
@@ -8,31 +8,28 @@ from handlers.users.active_acc import active_acc
 
 
 dict_wallets = {}
+dict_dell_users = {}
 
 
 @dp.callback_query_handler(text='merge_wallets')
 async def merge_wallets(call: types.CallbackQuery):
     dict_wallets[f'{call.message.chat.id}'] = []
-
-    acc = server.get_current_accounting(user=call.message.chat.id)
-    sql = "SELECT id FROM wallets WHERE user_id=%s AND accounting_id=%s"
-    user_wallet = db.execute(sql, parameters=(
-        call.message.chat.id, acc[0]), fetchall=True)
-    dict_wallets[f'{call.message.chat.id}'].append(user_wallet[0][0])
+    dict_dell_users[f'{call.message.chat.id}'] = []
 
     await call.message.answer(text='Выберите пользователей, с которыми хотите обьединить кошельки:', reply_markup=merge_wallets_keyboard(call.message))
 
 
 @dp.callback_query_handler(merge_wallets_callback.filter())
 async def merge_wallets2(call: types.CallbackQuery, callback_data: dict):
-    acc = server.get_current_accounting(user=call.message.chat.id)
+    acc = server.get_current_accounting(call.message.chat.id)[0]
     id = callback_data.get('id')
 
-    sql = "SELECT id FROM wallets WHERE user_id=%s AND accounting_id=%s"
-    user_wallet = db.execute(sql, parameters=(id, acc[0]), fetchall=True)
-    dict_wallets[f'{call.message.chat.id}'].append(user_wallet[0][0])
-    print(dict_wallets[f'{call.message.chat.id}'])
-    await call.message.answer(text='Выберите пользователей, с которыми хотите обьединить кошельки:', reply_markup=merge_wallets_keyboard(call.message, id))
+    user_wallet = server.my_wallet(
+        acc_id=acc, user=id)[0]
+
+    dict_wallets[f'{call.message.chat.id}'].append(user_wallet)
+    dict_dell_users[f'{call.message.chat.id}'].append(id)
+    await call.message.answer(text='Выберите пользователей, с которыми хотите обьединить кошельки:', reply_markup=merge_wallets_keyboard(call.message, dict_dell_users[f'{call.message.chat.id}']))
 
 
 @dp.callback_query_handler(text='accept_merge_wallets')

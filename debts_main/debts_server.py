@@ -1,5 +1,4 @@
 import pymysql
-import configparser
 import logging
 import os
 from logging.handlers import TimedRotatingFileHandler
@@ -25,6 +24,7 @@ def try_and_log(msg):
     def dcrtr(func):
         def wrap(self, *args, **kwargs):
             try:
+                self.connection.ping(reconnect=True)
                 return func(self, *args, **kwargs), 'OK'
             except Exception as ex:
                 dtl_msg = f"{msg}: {ex}"
@@ -62,7 +62,7 @@ class DebtsServer(object):
     def __init__(self):
         """
         Инициализация DebtsServer. \n
-        Параметры БД считывает из файла debts.ini \n
+        Параметры БД считывает из файла .env \n
         Запускает вывод в лог Logs/debts.log.
 
         """
@@ -81,30 +81,15 @@ class DebtsServer(object):
             '%(asctime)s [%(levelname)s]:  %(message)s'))
         self.logger.info('Запуск приложения "Долговая книга')
 
-        self.cfg = configparser.ConfigParser()
-        # noinspection PyBroadException
         try:
             self.host = config.IP
             self.port = config.PORT
             self.database = config.DATABASE
-            # self.cfg.read('debts.ini')
-            # self.host = self.cfg['DB']['address']
-            # self.port = int(self.cfg['DB']['port'])
-            # self.database = self.cfg['DB']['database']
-        except Exception:
-            # if 'DB' not in self.cfg.sections():
-            #     self.cfg.add_section('DB')
-            self.host = 'yar.diskstation.me'
-            self.port = 13306
-            self.database = 'bot_debts'
-            # # self.cfg['DB']['address'] = config.IP
-            # # self.cfg['DB']['port'] = config.PORT
-            # # self.cfg['DB']['database'] = config.DATABASE
-            # self.cfg['DB']['address'] = self.host
-            # self.cfg['DB']['port'] = str(self.port)
-            # self.cfg['DB']['database'] = self.database
-            # with open('debts.ini', 'w') as configfile:
-            #     self.cfg.write(configfile)
+            self.db_user = config.PGUSER
+            self.password = config.PGPASSWORD
+        except Exception as ex:
+            self.logger.error(
+                f"Невозможно прочитать файл конфигурации:\n\t{ex}")
 
         self.connection = None
         self.logger.info(f'Подключение к базе данных {self.database} '
@@ -114,14 +99,33 @@ class DebtsServer(object):
             self.connection = pymysql.connect(
                 host=self.host,
                 port=self.port,
-                user='bot',
-                password='F28-cjr8s]bg!2eE',
+                user=self.db_user,
+                password=self.password,
                 database=self.database,
                 cursorclass=pymysql.cursors.DictCursor
             )
             self.logger.info('Подключение выполнено успешно')
         except pymysql.err.OperationalError:
             self.logger.error('Невозможно подключиться к базе данных')
+
+    @try_and_log('Ошибка исполнения внешнего запроса')
+    def execute(self, query: str, parameters: tuple = None, fetchone=False, fetchall=False, commit=False):
+        if not parameters:
+            parameters = tuple()
+
+        self.logger.info(f'query = "{query}, ({parameters})')
+        with self.connection.cursor() as cursor:
+            cursor.execute(query, parameters)
+            data = None
+
+            if commit:
+                self.connection.commit()
+            elif fetchone:
+                data = cursor.fetchone()
+            elif fetchall:
+                data = cursor.fetchall()
+
+            return data
 
     @try_and_log('Ошибка регистрации пользователя')
     def reg_user(self, user_id, nic):
@@ -139,7 +143,6 @@ class DebtsServer(object):
             self.logger.info(f'Регистрация')
             self.logger.info(f'id={user_id}, nic="{nic}"')
             query = "SELECT id FROM users WHERE id = %s"
-            self.logger.info(f'query={query}"')
             cursor.execute(query, user_id)
             if cursor.fetchone() is not None:
                 raise ValueError('Пользователь с таким id уже зарегистрирован')
@@ -149,6 +152,34 @@ class DebtsServer(object):
             self.connection.commit()
             self.logger.info(
                 f"Зарегистрирован новый пользователь {nic} (id: {user_id})")
+
+    @try_and_log('Ошибка подучения имени пользователя')
+    def user_name(self, user):
+        """
+        Метод возвращает имя пользователя
+        Args:
+            user (int): ID пользователя в БД users.id
+        Returns:
+            str: Имя пользователя
+        """
+        with self.connection.cursor() as cursor:
+            query = "SELECT user_nic FROM users WHERE id = %s"
+            cursor.execute(query, user)
+            return cursor.fetchone()['user_nic']
+
+    @try_and_log('Ошибка подучения названия расчета')
+    def accounting_name(self, acc_id):
+        """
+        Метод возвращает название расчета
+        Args:
+            acc_id (int): ID расчета в БД accountings.id
+        Returns:
+            str: Имя пользователя
+        """
+        with self.connection.cursor() as cursor:
+            query = "SELECT name FROM accountings WHERE id = %s"
+            cursor.execute(query, acc_id)
+            return cursor.fetchone()['name']
 
     @try_and_log('Ошибка при создании новой группы пользователей')
     def new_group(self, accounting, users):
@@ -194,6 +225,18 @@ class DebtsServer(object):
             cursor.execute('SELECT LAST_INSERT_ID() AS id')
             self.logger.info(f"Создан новый кошелек {wallet_name}")
             return cursor.fetchone()['id']
+
+    @try_and_log('Ошибка подучения названия кошелька')
+    def wallet_name(self, wallet):
+        """
+        Метод возвращает имя пользователя
+        Args:
+            wallet (int): ID кошелька в БД wallet_balance.id
+        Returns:
+            str: Имя кошелька
+        """
+        query = "SELECT name FROM wallet_balance WHERE id = %s"
+        return result(self.execute(query, wallet, fetchone=True))['name']
 
     @try_and_log('Ошибка присвоения пользователям кошельков')
     def assign_wallet(self, accounting, users, wallets):
@@ -271,14 +314,12 @@ class DebtsServer(object):
                 `end_time` время закрыимя
 
         """
-        with self.connection.cursor() as cursor:
-            query = "SELECT * FROM accountings "
-            if status.upper() == 'ACTIVE':
-                query += "WHERE start_time IS NOT NULL AND end_time IS NULL"
-            elif status.upper() == 'ARCHIVE':
-                query += "WHERE end_time IS NOT NULL"
-            cursor.execute(query)
-            return cursor.fetchall()
+        query = "SELECT * FROM accountings "
+        if status.upper() == 'ACTIVE':
+            query += "WHERE start_time IS NOT NULL AND end_time IS NULL"
+        elif status.upper() == 'ARCHIVE':
+            query += "WHERE end_time IS NOT NULL"
+        return result(self.execute(query, fetchall=True))
 
     @try_and_log('Ошибка при создании нового множества бенефициаров')
     def new_beneficiaries(self, users):
@@ -420,7 +461,58 @@ class DebtsServer(object):
                 f"Пользователь {user} добавлен к списку бенефициаров документа покупки {doc}")
             self.post_purchase_doc(acc_id, doc, reject=False)
 
-    # noinspection PyTypeChecker
+    @try_and_log('Ошибка получения номера собственного кошелька')
+    def my_wallet(self, acc_id, user):
+        """
+            Возвращает идентификатор кошелька, к которому присединет пользователь
+            Args:
+                acc_id (int): идентификатор расчета accountings.id
+                user: идентификаторр пользователя в БД users.id
+            Returns:
+                int: идентификатор кошелька wallets.wallet
+        """
+        with self.connection.cursor() as cursor:
+            query = "SELECT wallet FROM wallets WHERE accounting_id = %s AND user_id = %s"
+            cursor.execute(query, (acc_id, user))
+            return cursor.fetchone()['wallet']
+
+    @try_and_log('Ошибка получения списка чужих кошельков')
+    def others_wallets(self, acc_id, user):
+        """
+            Возвращает список идентификаторов чужих кошельков
+            Args:
+                acc_id (int): идентификатор расчета accountings.id
+                user: идентификаторр пользователя в БД users.id
+            Returns:
+                lst(int): список идентификаторов кошельков wallets.wallet
+        """
+        my_wallet = self.my_wallet(acc_id, user)[0]
+        with (self.connection.cursor() as cursor):
+            query = "SELECT DISTINCT wallet FROM wallets WHERE accounting_id = %s"
+            cursor.execute(query, acc_id)
+            all_wallets = [wlt['wallet'] for wlt in cursor.fetchall()]
+            all_wallets.remove(my_wallet)
+            return all_wallets
+
+    @try_and_log('Ошибка получения баласов кошельков')
+    def wallet_balances(self, acc_id):
+        """
+            Возвращает словарь состоящий из имен и балансов всех кошельков расчета
+            Args:
+                acc_id (int): идентификатор расчета accountings.id
+            Returns:
+                dict: словарь: ключи - названия кошельков; значения - балансы
+        """
+        with self.connection.cursor() as cursor:
+            query = ("SELECT wallet_balance.name as name, wallet_balance.balance as balance "
+                     "FROM wallets JOIN wallet_balance ON wallets.wallet = wallet_balance.id "
+                     "WHERE accounting_id = %s")
+            cursor.execute(query, acc_id)
+            wallets = cursor.fetchall()
+            return {wallet['name']: wallet['balance'] for wallet in wallets}
+
+     # noinspection PyTypeChecker
+
     @try_and_log('Ошибка объединения кошелков')
     def merge_wallets(self, acc_id, wallets_list, name=None):
         """
@@ -454,6 +546,43 @@ class DebtsServer(object):
                 cursor.execute(query, wallet['id'])
             self.connection.commit()
 
+    @try_and_log('Ошибка выхода пользователя из кошелька')
+    def leave_wallet(self, acc_id, user, name=None):
+        """
+        Метод для выхода пользователя из кошелька \n
+        Имя нового кошелька складывается из имен кошельков в списке, разделенных символом '+'
+
+        Args:
+            acc_id: идентификатор расчета accountings.id
+            user (int): идентификатор пользователя users.id
+            name (str): Новое название кошелька после выхода пользователя
+        """
+        wallet = result(self.my_wallet(acc_id, user))
+        with self.connection.cursor() as cursor:
+            if name is None:
+                query = "SELECT user_id FROM wallets WHERE wallet = %s AND user_id != %s"
+                cursor.execute(query, (acc_id, user))
+                users = cursor.fetchall()['user_id']
+                if len(users) == 1:
+                    name = result(self.user_name(users[0]))
+                else:
+                    name = result(self.wallet_name(wallet))
+            query = "SELECT balance FROM user_balance WHERE accounting_id = %s AND user_id = %s"
+            cursor.execute(query, (acc_id, user))
+            user_balance = cursor.fetchone()['balance']
+            query = "SELECT user_nic FROM users WHERE id = %"
+            cursor.execute(query, user)
+            user_nic = cursor.fetchone()['user_nic']
+            query = "SELECT balance FROM wallet_balance WHERE id = %s"
+            cursor.execute(query, wallet)
+            wallet_balance = cursor.fetchone()['balance']
+            query = "INSERT INTO wallet_balance (balance, name) VALUES (%s, %s)"
+            cursor.execute(query, (user_balance, user_nic))
+            query = "UPDATE wallet_balance SET balance = %s, name = %s WHERE id = %s"
+            cursor.execute(query, (wallet_balance-user_balance, name, wallet))
+            self.connection.commit()
+            self.logger.info(f"Пользователю {user} вышел из кошелька {wallet}")
+
     # noinspection PyTypeChecker
     @try_and_log('Ошибка присвоения пользователю номера текущего расчета')
     def set_current_accounting(self, acc_id, user):
@@ -471,8 +600,7 @@ class DebtsServer(object):
                 self.logger.info(
                     f"Пользователю {user} сброшен номер текущего расчета")
             else:
-                self.logger.info(
-                    f"Пользователю {user} присвоен номер текущего расчета {acc_id}")
+                self.logger.info(f"Пользователю {user} присвоен номер текущего расчета {acc_id}")
 
     # noinspection PyTypeChecker
     @try_and_log('Ошибка получения номера текущего расчета')
@@ -540,21 +668,26 @@ class DebtsServer(object):
     # noinspection PyTypeChecker
 
     @try_and_log("Ошибка проверки пользователя")
-    def check_user(self, acc_id, user):
+    def check_user(self, acc_id=None, user=None):
         """
-        Проверяет: входит ли пользователь в группу расчета
+        Если acc_id целое число, проверяет: входит ли пользователь в группу расчета.
+        Если acc_id is None, проверяет его наличие в базе таблице пользователей.
         Args:
             acc_id (int): идентификатор расчета accountings.id
             user (int): Идентификатор пользователя в БД users.id
         Raises:
-            ValueError: Если пользователь н входит в группу
+            ValueError: Если проверка не прошла
         """
         with self.connection.cursor() as cursor:
-            query = "SELECT user_id FROM groups WHERE accounting_id = %s"
-            cursor.execute(query, acc_id)
-            users = [usr['user_id'] for usr in cursor.fetchall()]
-            if user not in users:
-                raise ValueError('Пользователь не входит в групу рассчета')
+            if isinstance(acc_id, int):
+                query = "SELECT id FROM groups WHERE accounting_id = %s AND user_id = %s"
+                cursor.execute(query, (acc_id, user))
+            else:
+                query = "SELECT id FROM users WHERE id = %s"
+                cursor.execute(query, user)
+            users = cursor.fetchall()
+            if len(users) == 0:
+                raise ValueError('Проверка пользователя не прошла')
 
     # noinspection PyTypeChecker
     @try_and_log("Ошибка создания документа 'Покупка'")

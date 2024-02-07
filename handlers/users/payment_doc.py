@@ -1,4 +1,4 @@
-from loader import dp, db, server
+from loader import dp, server
 from aiogram import types
 from aiogram.dispatcher.storage import FSMContext
 
@@ -40,7 +40,6 @@ async def payment_doc4(message: types.Message, state: FSMContext):
 
     server.add_payment_doc(
         acc_id=acc_id, recipient=rec, payer=payer, amount=amount, comment=comment)
-    sql = "SELECT user_nic FROM users WHERE id=%s"
-    nic = db.execute(sql, parameters=(rec), fetchall=True)
-    await message.answer(f'Перевод пользователю {nic[0][0]} на сумму {amount} совершён')
+    nic = server.user_name(rec)[0]
+    await message.answer(f'Перевод пользователю {nic} на сумму {amount} совершён')
     await active_acc(message)
