@@ -487,7 +487,7 @@ class DebtsServer(object):
                 lst(int): список идентификаторов кошельков wallets.wallet
         """
         my_wallet = self.my_wallet(acc_id, user)[0]
-        with (self.connection.cursor() as cursor):
+        with self.connection.cursor() as cursor:
             query = "SELECT DISTINCT wallet FROM wallets WHERE accounting_id = %s"
             cursor.execute(query, acc_id)
             all_wallets = [wlt['wallet'] for wlt in cursor.fetchall()]
