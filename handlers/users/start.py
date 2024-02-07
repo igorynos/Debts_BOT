@@ -12,7 +12,7 @@ from loader import dp, server
 @dp.message_handler(CommandStart())
 async def bot_start(message: types.Message, state: FSMContext):
     result = server.check_user(user=message.from_user.id)[1]
-    if result is 'OK':
+    if result == 'OK':
         await message.answer(f"Главное меню", reply_markup=main_menu(message=message))
     else:
         await message.answer(f"Привет, {message.from_user.full_name}!")

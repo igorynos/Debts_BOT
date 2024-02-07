@@ -680,7 +680,7 @@ class DebtsServer(object):
             ValueError: Если проверка не прошла
         """
         with self.connection.cursor() as cursor:
-            if isinstance(acc_id, int):
+            if acc_id is not None:
                 query = "SELECT id FROM groups WHERE accounting_id = %s AND user_id = %s"
                 cursor.execute(query, (acc_id, user))
             else:

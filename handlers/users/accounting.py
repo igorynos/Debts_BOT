@@ -38,13 +38,13 @@ async def create_new_accounting(message: types.Message, state: FSMContext):
 async def accounting(call: types.CallbackQuery, callback_data: dict, state: FSMContext):
     id = callback_data.get('id')
     dict_temp_acc[f"{call.message.chat.id}"] = id
-    users = server.get_group_users(id)
+    users = server.get_group_users(id)[0]
     name = server.accounting_name(id)[0]
 
     text = f'Расчёт {name}\n'
     for i, x in enumerate(users):
-        nic = server.user_name(x[0])
-        text += f'\n{i}. {nic[0]}'
+        nic = server.user_name(x)[0]
+        text += f'\n{i+1}. {nic}'
     await call.message.answer(text=text, reply_markup=join_acc_1)
 
 
@@ -52,6 +52,7 @@ async def accounting(call: types.CallbackQuery, callback_data: dict, state: FSMC
 async def join_acc1(call: types.CallbackQuery, state: FSMContext):
     obj = server.check_user(
         acc_id=dict_temp_acc[f"{call.message.chat.id}"], user=call.message.chat.id)
+    print(obj)
     if obj[1] == 'OK':
         server.set_current_accounting(
             acc_id=dict_temp_acc[f"{call.message.chat.id}"], user=call.message.chat.id)
