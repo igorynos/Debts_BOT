@@ -287,8 +287,7 @@ class DebtsServer(object):
                     for user in users for i in range(3)]
             cursor.execute(query, args)
             self.connection.commit()
-            self.logger.info(
-                f"К расчету {accounting_id} добавлены участники {', '.join(map(str, users))}")
+            self.logger.info(f"К расчету {accounting_id} добавлены участники {', '.join(map(str, users))}")
             wallets = []
             for user in users:
                 wallets.append(result(self.new_wallet(user)))
@@ -457,8 +456,7 @@ class DebtsServer(object):
             query = "UPDATE purchase_docs SET bnfcr_group = %s WHERE id = %s"
             cursor.execute(query, [bnfcr, doc])
             self.connection.commit()
-            self.logger.info(
-                f"Пользователь {user} добавлен к списку бенефициаров документа покупки {doc}")
+            self.logger.info(f"Пользователь {user} добавлен к списку бенефициаров документа покупки {doc}")
             self.post_purchase_doc(acc_id, doc, reject=False)
 
     @try_and_log('Ошибка получения номера собственного кошелька')
@@ -545,6 +543,8 @@ class DebtsServer(object):
                 query = "DELETE FROM wallet_balance WHERE id = %s"
                 cursor.execute(query, wallet['id'])
             self.connection.commit()
+            self.logger.info(f"Кошельки {', '.join(wallets_list)} объединены под номером {wallets_list[0]}")
+            self.logger.info(f"Название нового кошелька: '{name}'")
 
     @try_and_log('Ошибка выхода пользователя из кошелька')
     def leave_wallet(self, acc_id, user, name=None):
@@ -586,6 +586,7 @@ class DebtsServer(object):
             cursor.execute(query, (new_wallet, user))
             self.connection.commit()
             self.logger.info(f"Пользователю {user} вышел из кошелька {wallet}")
+            self.logger.info(f"Кошелькам присвоены названия '{name}' и '{user_nic}'")
 
     # noinspection PyTypeChecker
     @try_and_log('Ошибка присвоения пользователю номера текущего расчета')
