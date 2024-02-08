@@ -260,6 +260,17 @@ class DebtsServer(object):
             self.logger.info(f"Участникам {', '.join(map(str, users))} "
                              f"присвоены кошельки {', '.join(map(str, wallets))}")
 
+    @try_and_log('Ошибка получения списка пользователей кошелька')
+    def wallet_users(self, acc_id, user=None, wallet=None):
+        if user is not None:
+            wallet = result(self.my_wallet(acc_id, user))
+        if wallet is None:
+            return []
+        with self.connection.cursor() as cursor:
+            query = "SELECT user_id FROM wallet_users WHERE wallet = %s"
+            cursor.execute(query, wallet)
+            return [user['user_id'] for user in cursor.fetchall()]
+
     @try_and_log('Ошибка при создании нового расчета')
     def new_accounting(self, name, users):
         """
