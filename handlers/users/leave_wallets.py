@@ -19,7 +19,6 @@ async def leave_wallet_2(message: types.Message, state: FSMContext):
     acc = server.get_current_accounting(user=message.chat.id)[0]
     wallet = server.my_wallet(acc, message.chat.id)[0]
     wallet_name = server.wallet_name(wallet)[0]
-    print(acc, message.chat.id, message.text)
     server.leave_wallet(acc, message.chat.id, message.text)
     await message.answer(text=f'Вы покинули кошелёк {wallet_name}\n\nКошелёк {message.text} создан')
     await active_acc(message)
