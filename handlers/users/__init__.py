@@ -4,6 +4,7 @@ from . import purchase
 from . import balance
 from . import payment_doc
 from . import merge_wallets
+from . import leave_wallets
 from . import active_acc
 from . import total
 from . import help

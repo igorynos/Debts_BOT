@@ -13,7 +13,10 @@ dict_dell_users = {}
 
 @dp.callback_query_handler(text='merge_wallets')
 async def merge_wallets(call: types.CallbackQuery):
-    dict_wallets[f'{call.message.chat.id}'] = []
+    acc = server.get_current_accounting(call.message.chat.id)[0]
+    user_wallet = server.my_wallet(
+        acc_id=acc, user=call.message.chat.id)[0]
+    dict_wallets[f'{call.message.chat.id}'] = [user_wallet]
     dict_dell_users[f'{call.message.chat.id}'] = []
 
     await call.message.answer(text='Выберите пользователей, с которыми хотите обьединить кошельки:', reply_markup=merge_wallets_keyboard(call.message))

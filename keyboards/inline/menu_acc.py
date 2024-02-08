@@ -14,7 +14,10 @@ payment_doc = InlineKeyboardButton(
     "💸 Платёж", callback_data='payment_doc')
 
 merge_wallets = InlineKeyboardButton(
-    "➕ Обьединить кошельки", callback_data='merge_wallets')
+    "➕ Объединить кошельки", callback_data='merge_wallets')
+
+leave_wallets = InlineKeyboardButton(
+    "➖ Покинуть кошелёк", callback_data='leave_wallet')
 
 wallets_balance = InlineKeyboardButton(
     "👛 Кошельки", callback_data='wallets_balance')
@@ -23,7 +26,7 @@ total = InlineKeyboardButton(
     "📋 Отчёт", callback_data='total')
 
 menu_acc = InlineKeyboardMarkup().add(purchase, payment_doc).add(
-    merge_wallets).add(wallets_balance, total)
+    merge_wallets, leave_wallets).add(wallets_balance, total)
 
 
 def pay_lst(message: types.Message):
@@ -59,5 +62,5 @@ def merge_wallets_keyboard(message: types.Message, del_user=None):
             change_card.add(InlineKeyboardButton(
                 text=f"{nic[0]}", callback_data=merge_wallets_callback.new(id=x)))
     change_card.add(InlineKeyboardButton(
-        text=f"✅ Обьединить", callback_data='accept_merge_wallets'))
+        text=f"✅ Объединить", callback_data='accept_merge_wallets'))
     return change_card
