@@ -212,7 +212,7 @@ class DebtsServer(object):
             user (int): ID пользователя в БД users.id
             wallet_name (str, optional): Имя кошелька. По умолчанию: ник пользователя.
         Returns:
-            int: ID кошелька в БД wallet_balance.id
+            int: ID кошелька в БД wallets.id
         """
         with self.connection.cursor() as cursor:
             if wallet_name is None:
@@ -220,7 +220,7 @@ class DebtsServer(object):
                     "SELECT user_nic FROM users WHERE id = %s", user)
                 wallet_name = cursor.fetchone()['user_nic']
             cursor.execute(
-                "INSERT INTO wallet_balance (balance, name) VALUES (0, %s)", wallet_name)
+                "INSERT INTO wallets (balance, name) VALUES (0, %s)", wallet_name)
             self.connection.commit()
             cursor.execute('SELECT LAST_INSERT_ID() AS id')
             self.logger.info(f"Создан новый кошелек {wallet_name}")
@@ -231,11 +231,11 @@ class DebtsServer(object):
         """
         Метод возвращает имя пользователя
         Args:
-            wallet (int): ID кошелька в БД wallet_balance.id
+            wallet (int): ID кошелька в БД wallets.id
         Returns:
             str: Имя кошелька
         """
-        query = "SELECT name FROM wallet_balance WHERE id = %s"
+        query = "SELECT name FROM wallets WHERE id = %s"
         return result(self.execute(query, wallet, fetchone=True))['name']
 
     @try_and_log('Ошибка присвоения пользователям кошельков')
@@ -251,7 +251,7 @@ class DebtsServer(object):
             users = [users]
             wallets = [wallets]
         with self.connection.cursor() as cursor:
-            query = "INSERT INTO wallets (user_id, accounting_id, wallet) VALUES " + \
+            query = "INSERT INTO wallet_users (user_id, accounting_id, wallet) VALUES " + \
                     ", ".join(["(%s, %s, %s)"] * len(users))
             args = [[users[i], accounting, wallets[i]][j]
                     for i in range(len(users)) for j in range(3)]
@@ -467,10 +467,10 @@ class DebtsServer(object):
                 acc_id (int): идентификатор расчета accountings.id
                 user: идентификаторр пользователя в БД users.id
             Returns:
-                int: идентификатор кошелька wallets.wallet
+                int: идентификатор кошелька wallet_users.wallet
         """
         with self.connection.cursor() as cursor:
-            query = "SELECT wallet FROM wallets WHERE accounting_id = %s AND user_id = %s"
+            query = "SELECT wallet FROM wallet_users WHERE accounting_id = %s AND user_id = %s"
             cursor.execute(query, (acc_id, user))
             return cursor.fetchone()['wallet']
 
@@ -482,11 +482,11 @@ class DebtsServer(object):
                 acc_id (int): идентификатор расчета accountings.id
                 user: идентификаторр пользователя в БД users.id
             Returns:
-                lst(int): список идентификаторов кошельков wallets.wallet
+                lst(int): список идентификаторов кошельков wallet_users.wallet
         """
         my_wallet = self.my_wallet(acc_id, user)[0]
         with self.connection.cursor() as cursor:
-            query = "SELECT DISTINCT wallet FROM wallets WHERE accounting_id = %s"
+            query = "SELECT DISTINCT wallet FROM wallet_users WHERE accounting_id = %s"
             cursor.execute(query, acc_id)
             all_wallets = [wlt['wallet'] for wlt in cursor.fetchall()]
             all_wallets.remove(my_wallet)
@@ -502,8 +502,8 @@ class DebtsServer(object):
                 dict: словарь: ключи - названия кошельков; значения - балансы
         """
         with self.connection.cursor() as cursor:
-            query = ("SELECT wallet_balance.name as name, wallet_balance.balance as balance "
-                     "FROM wallets JOIN wallet_balance ON wallets.wallet = wallet_balance.id "
+            query = ("SELECT wallets.name as name, wallets.balance as balance "
+                     "FROM wallet_users JOIN wallets ON wallet_users.wallet = wallets.id "
                      "WHERE accounting_id = %s")
             cursor.execute(query, acc_id)
             wallets = cursor.fetchall()
@@ -531,16 +531,16 @@ class DebtsServer(object):
             if default_name:
                 name = wallets[0]['name']
             for wallet in wallets[1:]:
-                query = "UPDATE wallets SET wallet = %s WHERE wallet = %s"
+                query = "UPDATE wallet_users SET wallet = %s WHERE wallet = %s"
                 cursor.execute(query, [wallets[0]['id'], wallet['id']])
                 balance += wallet['balance']
                 if default_name:
                     name += '+' + wallet['name']
-            query = "UPDATE wallet_balance SET balance = %s, name = %s WHERE id = %s"
+            query = "UPDATE wallets SET balance = %s, name = %s WHERE id = %s"
             cursor.execute(query, [balance, name, wallets[0]['id']])
             self.connection.commit()
             for wallet in wallets[1:]:
-                query = "DELETE FROM wallet_balance WHERE id = %s"
+                query = "DELETE FROM wallets WHERE id = %s"
                 cursor.execute(query, wallet['id'])
             self.connection.commit()
             self.logger.info(f"Кошельки {', '.join(wallets_list)} объединены под номером {wallets_list[0]}")
@@ -560,7 +560,7 @@ class DebtsServer(object):
         wallet = result(self.my_wallet(acc_id, user))
         with self.connection.cursor() as cursor:
             if name is None:
-                query = "SELECT user_id FROM wallets WHERE wallet = %s AND user_id != %s"
+                query = "SELECT user_id FROM wallet_users WHERE wallet = %s AND user_id != %s"
                 cursor.execute(query, (wallet, user))
                 users = cursor.fetchall()
                 if len(users) == 1:
@@ -573,16 +573,16 @@ class DebtsServer(object):
             query = "SELECT user_nic FROM users WHERE id = %s"
             cursor.execute(query, user)
             user_nic = cursor.fetchone()['user_nic']
-            query = "SELECT balance FROM wallet_balance WHERE id = %s"
+            query = "SELECT balance FROM wallets WHERE id = %s"
             cursor.execute(query, wallet)
             wallet_balance = cursor.fetchone()['balance']
-            query = "INSERT INTO wallet_balance (balance, name) VALUES (%s, %s)"
+            query = "INSERT INTO wallets (balance, name) VALUES (%s, %s)"
             cursor.execute(query, (user_balance, user_nic))
             cursor.execute("SELECT LAST_INSERT_ID()")
             new_wallet = cursor.fetchone()['LAST_INSERT_ID()']
-            query = "UPDATE wallet_balance SET balance = %s, name = %s WHERE id = %s"
+            query = "UPDATE wallets SET balance = %s, name = %s WHERE id = %s"
             cursor.execute(query, (wallet_balance-user_balance, name, wallet))
-            query = "UPDATE wallets SET wallet = %s WHERE user_id = %s"
+            query = "UPDATE wallet_users SET wallet = %s WHERE user_id = %s"
             cursor.execute(query, (new_wallet, user))
             self.connection.commit()
             self.logger.info(f"Пользователю {user} вышел из кошелька {wallet}")
@@ -633,7 +633,7 @@ class DebtsServer(object):
             acc_id (int): идентификатор расчета accountings.id
             user (int): Идентификатор пользователя в БД users.id
             recalc (bool, optional): Флаг перерасчета. По умолчанию False
-            wallet (int, optional): Идентификатор кошелька в БД wallet_balance.id.
+            wallet (int, optional): Идентификатор кошелька в БД wallets.id.
         """
         with self.connection.cursor() as cursor:
             query = "SELECT current_accounting FROM users WHERE id = %s"
@@ -883,11 +883,11 @@ class DebtsServer(object):
             wallets = result(self.get_wallet_balance(acc_id))
             for wallet in wallets:
                 query = "SELECT SUM(balance) AS balance FROM user_balance " \
-                        "WHERE user_id in (SELECT user_id FROM wallets WHERE wallet = %s) " \
+                        "WHERE user_id in (SELECT user_id FROM wallet_users WHERE wallet = %s) " \
                         "AND accounting_id = %s"
                 cursor.execute(query, (wallet['id'], acc_id))
                 balance = cursor.fetchone()['balance']
-                query = "UPDATE wallet_balance SET balance = %s WHERE id = %s"
+                query = "UPDATE wallets SET balance = %s WHERE id = %s"
                 cursor.execute(query, [balance, wallet['id']])
                 self.logger.info(
                     f"Обновлен баланс кошелька {wallet['id']}: {balance}")
@@ -926,9 +926,9 @@ class DebtsServer(object):
             list: баланс
         """
         with self.connection.cursor() as cursor:
-            query = "SELECT id, name, balance FROM wallet_balance " \
-                    "WHERE id in (SELECT wallet FROM wallets " \
-                    "WHERE wallets.accounting_id = %s) "
+            query = "SELECT id, name, balance FROM wallets " \
+                    "WHERE id in (SELECT wallet FROM wallet_users " \
+                    "WHERE wallet_users.accounting_id = %s) "
             args = [acc_id]
             if wallet_list is not None:
                 if isinstance(wallet_list, int):
@@ -955,8 +955,8 @@ class DebtsServer(object):
             query = "SELECT name, start_time, end_time FROM accountings WHERE id = %s"
             cursor.execute(query, acc_id)
             res = cursor.fetchone()
-            query = ("SELECT DISTINCT wallets.wallet, wallet_balance.name, wallet_balance.balance  "
-                     "FROM wallets JOIN wallet_balance ON wallets.wallet = wallet_balance.id "
+            query = ("SELECT DISTINCT wallet_users.wallet, wallets.name, wallets.balance  "
+                     "FROM wallet_users JOIN wallets ON wallet_users.wallet = wallets.id "
                      "WHERE accounting_id = %s")
             cursor.execute(query, acc_id)
             wallets = cursor.fetchall()
@@ -971,8 +971,8 @@ class DebtsServer(object):
                     f'время окончания: {res["end_time"] if res["end_time"] is not None else "-" } \n')
                 report.write(f"\nПОКУПКИ\n")
                 for wallet in wallets:
-                    query = ("SELECT users.id, users.user_nic FROM wallets "
-                             "JOIN users ON users.id = wallets.user_id "
+                    query = ("SELECT users.id, users.user_nic FROM wallet_users "
+                             "JOIN users ON users.id = wallet_users.user_id "
                              "WHERE wallet = %s")
                     cursor.execute(query, wallet['wallet'])
                     users = cursor.fetchall()
@@ -989,8 +989,8 @@ class DebtsServer(object):
                                 f"    {doc['time']}:     {doc['comment']}  -  {doc['amount']} \n")
                 report.write(f"\nПЛАТЕЖИ\n")
                 for wallet in wallets:
-                    query = ("SELECT users.id, users.user_nic FROM wallets "
-                             "JOIN users ON users.id = wallets.user_id "
+                    query = ("SELECT users.id, users.user_nic FROM wallet_users "
+                             "JOIN users ON users.id = wallet_users.user_id "
                              "WHERE wallet = %s")
                     cursor.execute(query, wallet['wallet'])
                     users = cursor.fetchall()
