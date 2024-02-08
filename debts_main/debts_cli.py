@@ -57,7 +57,7 @@ def choose_accounting():
         users = cursor.fetchall()
         for user in users:
             print(f"{user['id']}:  {user['user_nic']}")
-        user_list = list(map(int, input("Перечислите через запятую номера участников расчета: ").split(',')))
+        user_list = list(map(int, input("Перечислите через запятую ID участников расчета: ").split(',')))
         accounting_id = result(server.new_accounting(name, user_list))
         if accounting_id is None:
             return
@@ -79,6 +79,16 @@ def merge_wallets():
         print(f"{wallet['id']}: {wallet['name']}")
     wallets_list = list(map(int, input("Перечислите через запятую номера объединяемых кошельков: ").split(',')))
     result(server.merge_wallets(accounting, wallets_list))
+
+
+def leave_wallet():
+    cursor = server.connection.cursor()
+    cursor.execute("SELECT id, user_nic FROM users")
+    users = cursor.fetchall()
+    for user in users:
+        print(f"{user['id']}:  {user['user_nic']}")
+    user = int(input("Выберите ID пользователя: "))
+    server.leave_wallet(accounting, user)
 
 
 def show_balance():
@@ -135,13 +145,14 @@ if __name__ == '__main__':
             print('зарегистрировать (register)    - зарегистрировать нового пользователя \n'
                   'присоединить (join)            - присоединить пользователя к расчету \n' 
                   'расчет (accounting)            - выбрать или создать расчет \n'
-                  'объединить (merge)             - объединить кошельки \n'
                   'покупка (purchase)             - создать документ "Покупка" \n'
                   'платеж (payment)               - создать документ "Платеж" \n'
                   'баланс (balance)               - посмотреть текущий баланс \n'
                   'кошельки (wallets)             - посмотреть баланс всех кошельков \n'
+                  'объединить (merge)             - объединить кошельки \n'
                   'мой (my)                       - посмотреть идентификатор моего кошелька \n'
                   'чужие (others)                 - посмотреть идентификаторы чужих кошельков \n'
+                  'выйти (leave)                  - выйти из кошелька \n'
                   'отчет (report)                 - отчет по расчету \n'
                   'закрыть (close)                - закрыть расчет \n'
                   'выход (exit)                   - завершить программу')
@@ -193,6 +204,12 @@ if __name__ == '__main__':
                 if accounting is None:
                     continue
             others_wallets()
+        elif cmd.lower()[:3] in ('вый', 'lea'):
+            if accounting is None:
+                accounting = choose_accounting()
+                if accounting is None:
+                    continue
+            leave_wallet()
         elif cmd.lower()[:3] in ('отч', 'rep'):
             if accounting is None:
                 accounting = choose_accounting()
