@@ -113,7 +113,7 @@ class DebtsServer(object):
         if not parameters:
             parameters = tuple()
 
-        self.logger.info(f'query = "{query}, ({parameters})')
+        self.logger.debug(f'query = "{query}, ({parameters})')
         with self.connection.cursor() as cursor:
             cursor.execute(query, parameters)
             data = None
@@ -126,6 +126,10 @@ class DebtsServer(object):
                 data = cursor.fetchall()
 
             return data
+
+    ######################################################################
+    #              Методы работы с пользователями и группами             #
+    ######################################################################
 
     @try_and_log('Ошибка регистрации пользователя')
     def reg_user(self, user_id, nic):
@@ -167,20 +171,6 @@ class DebtsServer(object):
             cursor.execute(query, user)
             return cursor.fetchone()['user_nic']
 
-    @try_and_log('Ошибка подучения названия расчета')
-    def accounting_name(self, acc_id):
-        """
-        Метод возвращает название расчета
-        Args:
-            acc_id (int): ID расчета в БД accountings.id
-        Returns:
-            str: Имя пользователя
-        """
-        with self.connection.cursor() as cursor:
-            query = "SELECT name FROM accountings WHERE id = %s"
-            cursor.execute(query, acc_id)
-            return cursor.fetchone()['name']
-
     @try_and_log('Ошибка при создании новой группы пользователей')
     def new_group(self, accounting, users):
         """
@@ -203,145 +193,6 @@ class DebtsServer(object):
             self.logger.info(f"Создана новая группа {group_id} для расчета {accounting}. "
                              f"Участники: {', '.join(map(str, users))}")
             return id
-
-    @try_and_log('Ошибка создания нового кошелька')
-    def new_wallet(self, user, wallet_name=None):
-        """
-        Создает в базе данных новый кошелек для одного пользователя
-        Args:
-            user (int): ID пользователя в БД users.id
-            wallet_name (str, optional): Имя кошелька. По умолчанию: ник пользователя.
-        Returns:
-            int: ID кошелька в БД wallets.id
-        """
-        with self.connection.cursor() as cursor:
-            if wallet_name is None:
-                cursor.execute(
-                    "SELECT user_nic FROM users WHERE id = %s", user)
-                wallet_name = cursor.fetchone()['user_nic']
-            cursor.execute(
-                "INSERT INTO wallets (balance, name) VALUES (0, %s)", wallet_name)
-            self.connection.commit()
-            cursor.execute('SELECT LAST_INSERT_ID() AS id')
-            self.logger.info(f"Создан новый кошелек {wallet_name}")
-            return cursor.fetchone()['id']
-
-    @try_and_log('Ошибка подучения названия кошелька')
-    def wallet_name(self, wallet):
-        """
-        Метод возвращает имя пользователя
-        Args:
-            wallet (int): ID кошелька в БД wallets.id
-        Returns:
-            str: Имя кошелька
-        """
-        query = "SELECT name FROM wallets WHERE id = %s"
-        return result(self.execute(query, wallet, fetchone=True))['name']
-
-    @try_and_log('Ошибка присвоения пользователям кошельков')
-    def assign_wallet(self, accounting, users, wallets):
-        """
-        Присваивает пользователям из сиска users кошельки из списка wallets
-        Args:
-            accounting (int): ID расчета в БД accountings.id
-            users (list(int)): Список идентификаторов пользователей
-            wallets (list(int)): Список идентификаторов кошельков
-        """
-        if isinstance(users, int):
-            users = [users]
-            wallets = [wallets]
-        with self.connection.cursor() as cursor:
-            query = "INSERT INTO wallet_users (user_id, accounting_id, wallet) VALUES " + \
-                    ", ".join(["(%s, %s, %s)"] * len(users))
-            args = [[users[i], accounting, wallets[i]][j]
-                    for i in range(len(users)) for j in range(3)]
-            cursor.execute(query, args)
-            self.connection.commit()
-            self.logger.info(f"Участникам {', '.join(map(str, users))} "
-                             f"присвоены кошельки {', '.join(map(str, wallets))}")
-
-    @try_and_log('Ошибка получения списка пользователей кошелька')
-    def wallet_users(self, acc_id, user=None, wallet=None):
-        """
-        Возвращает список пользователей входящих в один кошелек \n
-        Кошелек задается или явно через ID (wallets.id) или через ID пользователя и расчета.
-        Если задано и то и другое, поиск ведется по ID пользователя и расчета
-        Args:
-            acc_id (int): ID расчета в БД accountings.id
-            user (int):   ID пользователя в БД users.id
-            wallet (int): ID кошелька в БД wallets.id
-        Returns:
-            list(int):  список идентификаторов пользователей
-
-        """
-        if user is not None:
-            wallet = result(self.my_wallet(acc_id, user))
-        if wallet is None:
-            return []
-        with self.connection.cursor() as cursor:
-            query = "SELECT user_id FROM wallet_users WHERE wallet = %s"
-            cursor.execute(query, wallet)
-            return [user['user_id'] for user in cursor.fetchall()]
-
-    @try_and_log('Ошибка при создании нового расчета')
-    def new_accounting(self, name, users):
-        """
-        Создает новый расчет и новую группу пользователей
-        Args:
-            name (str): Название расчета
-            users (list): Список идентификаторов пользователей данного расчета
-        Raises:
-            Exception: Вызывается если при создании новая группа не была создана
-        Returns:
-            int: ID идентификатор расчета в БД accountins.id
-        """
-        with self.connection.cursor() as cursor:
-            query = "INSERT INTO accountings (name, start_time) " \
-                    "VALUES (%s,  NOW())"
-            cursor.execute(query, name)
-            self.connection.commit()
-            cursor.execute('SELECT LAST_INSERT_ID() AS id')
-            accounting_id = cursor.fetchone()['id']
-            self.logger.info(f"Создан новый расчет {accounting_id} '{name}'")
-            result(self.new_group(accounting_id, users))
-            query = "INSERT INTO user_balance (user_id, accounting_id, balance) VALUES " + \
-                    ", ".join(["(%s, %s, %s)"] * len(users))
-            args = [[user, accounting_id, 0][i]
-                    for user in users for i in range(3)]
-            cursor.execute(query, args)
-            self.connection.commit()
-            self.logger.info(f"К расчету {accounting_id} добавлены участники {', '.join(map(str, users))}")
-            wallets = []
-            for user in users:
-                wallets.append(result(self.new_wallet(user)))
-                result(self.set_current_accounting(accounting_id, user))
-            result(self.assign_wallet(accounting_id, users, wallets))
-            return accounting_id
-
-    @try_and_log('Ошибка получения списка расчетов')
-    def accounting_list(self, status):
-        """
-        Получает из БД и возвращает список расчетов
-        Args:
-            status (str): статус выводимых расчетов
-                'ACTIVE' - выводятся только активные расчеты \n
-                'ARCHIVE' - выводятся только закрытые расчеты \n
-                'ALL' - ыводятся все расчеты
-        Returns:
-            list: Список расчетов с заданным статусом.
-            Каждый расчет в списке возвращаятся в виде словаря с ключами:
-                `id` идентификатор \n
-                `name` - название расчета \n
-                `start_time` время открытия \n
-                `end_time` время закрыимя
-
-        """
-        query = "SELECT * FROM accountings "
-        if status.upper() == 'ACTIVE':
-            query += "WHERE start_time IS NOT NULL AND end_time IS NULL"
-        elif status.upper() == 'ARCHIVE':
-            query += "WHERE end_time IS NOT NULL"
-        return result(self.execute(query, fetchall=True))
 
     @try_and_log('Ошибка при создании нового множества бенефициаров')
     def new_beneficiaries(self, users):
@@ -405,28 +256,6 @@ class DebtsServer(object):
                 else:
                     return result(self.new_beneficiaries(users))
 
-    @try_and_log("Ошибка закрытия расчета")
-    def close_accounting(self, acc_id):
-        """
-        Закрывает заданный расчет. \n
-        Если в нем ненулевой баланс (более одного рубля), вызывается исключение
-        Args:
-            acc_id (int): идентификатор расчета accountings.id
-        Raises:
-            Exception: Если баланс ненулевой
-        """
-        balance = result(self.get_wallet_balance(acc_id))
-        for blnc in balance:
-            if abs(blnc['balance']) >= 1:
-                raise Exception(
-                    'Невозможно закрыть расчет с ненулевым балансом')
-        with self.connection.cursor() as cursor:
-            query = "UPDATE accountings SET end_time = NOW()" \
-                    "WHERE id = %s"
-            cursor.execute(query, acc_id)
-            self.connection.commit()
-            self.logger.info(f"расчет {acc_id} закрыт")
-
     @try_and_log('Ошибка получения списка участников расчета')
     def get_group_users(self, acc_id):
         """
@@ -457,160 +286,130 @@ class DebtsServer(object):
             u = cursor.fetchall()
             return list(map(lambda x: x['user_id'], u))
 
-    # noinspection PyTypeChecker
-    @try_and_log('Ошибка добавления пользователя к документу "Покупка')
-    def add_user_to_purchase(self, acc_id, user, doc):
+    @try_and_log("Ошибка при проверке пользователя")
+    def check_user(self, acc_id=None, user=None):
         """
-        Добавляет пользователя в множество бенефициаров покупки
+        Если acc_id целое число, проверяет: входит ли пользователь в группу расчета.
+        Если acc_id is None, проверяет его наличие в базе таблице пользователей.
+        Args:
+            acc_id (int): Идентификатор расчета accountings.id
+            user (int): Идентификатор пользователя в БД users.id
+        Returns:
+            bool: Результат поиска пользователя
+        """
+        with self.connection.cursor() as cursor:
+            if acc_id is not None:
+                query = "SELECT id FROM groups WHERE accounting_id = %s AND user_id = %s"
+                cursor.execute(query, (acc_id, user))
+                where = f"в группе расчета {acc_id}"
+            else:
+                query = "SELECT id FROM users WHERE id = %s"
+                cursor.execute(query, user)
+                where = "в базе данных"
+            users = cursor.fetchall()
+            if len(users) == 0:
+                self.logger.info(f"Пользователь {user} не найден {where}")
+                return False
+            else:
+                self.logger.info(f"Пользователь {user} найден {where}")
+                return True
+
+    @try_and_log("Ошибка получения баланса")
+    def get_user_balance(self, acc_id):
+        """
+        Возвращает баланс расчета в виде списка словарей с ключами
+            'user_id' - идентификатор пользователя \n
+            'user_nic' - ник пользователя \n
+            'balance' - текущий баланс пользователя
         Args:
             acc_id (int): идентификатор расчета accountings.id
-            user (int): идентификаторр пользователя в БД users.id
-            doc (int): идентификаторр документа покупки в БД purchase_docs.id
+        Returns:
+            list: баланс
         """
         with self.connection.cursor() as cursor:
-            self.post_purchase_doc(acc_id, doc, reject=True)
-            query = "SELECT bnfcr_group FROM purchase_docs WHERE id = %s"
-            cursor.execute(query, doc)
-            bnfcr = cursor.fetchone()['bnfcr_group']
-            users = result(self.get_beneficiaries(bnfcr))
-            if user not in users:
-                users.append(user)
-            bnfcr = result(self.beneficiaries(users))
-            query = "UPDATE purchase_docs SET bnfcr_group = %s WHERE id = %s"
-            cursor.execute(query, [bnfcr, doc])
-            self.connection.commit()
-            self.logger.info(f"Пользователь {user} добавлен к списку бенефициаров документа покупки {doc}")
-            self.post_purchase_doc(acc_id, doc, reject=False)
-
-    @try_and_log('Ошибка получения номера собственного кошелька')
-    def my_wallet(self, acc_id, user):
-        """
-            Возвращает идентификатор кошелька, к которому присединет пользователь
-            Args:
-                acc_id (int): идентификатор расчета accountings.id
-                user: идентификаторр пользователя в БД users.id
-            Returns:
-                int: идентификатор кошелька wallet_users.wallet
-        """
-        with self.connection.cursor() as cursor:
-            query = "SELECT wallet FROM wallet_users WHERE accounting_id = %s AND user_id = %s"
-            cursor.execute(query, (acc_id, user))
-            return cursor.fetchone()['wallet']
-
-    @try_and_log('Ошибка получения списка чужих кошельков')
-    def others_wallets(self, acc_id, user):
-        """
-            Возвращает список идентификаторов чужих кошельков
-            Args:
-                acc_id (int): идентификатор расчета accountings.id
-                user: идентификаторр пользователя в БД users.id
-            Returns:
-                lst(int): список идентификаторов кошельков wallet_users.wallet
-        """
-        my_wallet = self.my_wallet(acc_id, user)[0]
-        with self.connection.cursor() as cursor:
-            query = "SELECT DISTINCT wallet FROM wallet_users WHERE accounting_id = %s"
+            query = "SELECT user_id, user_nic, balance FROM user_balance " \
+                    "JOIN users ON user_balance.user_id = users.id " \
+                    "WHERE accounting_id = %s"
             cursor.execute(query, acc_id)
-            all_wallets = [wlt['wallet'] for wlt in cursor.fetchall()]
-            all_wallets.remove(my_wallet)
-            return all_wallets
+            return cursor.fetchall()
 
-    @try_and_log('Ошибка получения баласов кошельков')
-    def wallet_balances(self, acc_id):
+    ######################################################################
+    #                   Методы работы с расчетами                        #
+    ######################################################################
+
+    @try_and_log('Ошибка при создании нового расчета')
+    def new_accounting(self, name, users):
         """
-            Возвращает словарь состоящий из имен и балансов всех кошельков расчета
-            Args:
-                acc_id (int): идентификатор расчета accountings.id
-            Returns:
-                dict: словарь: ключи - названия кошельков; значения - балансы
+        Создает новый расчет и новую группу пользователей
+        Args:
+            name (str): Название расчета
+            users (list): Список идентификаторов пользователей данного расчета
+        Raises:
+            Exception: Вызывается если при создании новая группа не была создана
+        Returns:
+            int: ID идентификатор расчета в БД accountins.id
         """
         with self.connection.cursor() as cursor:
-            query = ("SELECT wallets.name as name, wallets.balance as balance "
-                     "FROM wallet_users JOIN wallets ON wallet_users.wallet = wallets.id "
-                     "WHERE accounting_id = %s")
+            query = "INSERT INTO accountings (name, start_time) " \
+                    "VALUES (%s,  NOW())"
+            cursor.execute(query, name)
+            self.connection.commit()
+            cursor.execute('SELECT LAST_INSERT_ID() AS id')
+            accounting_id = cursor.fetchone()['id']
+            self.logger.info(f"Создан новый расчет {accounting_id} '{name}'")
+            result(self.new_group(accounting_id, users))
+            query = "INSERT INTO user_balance (user_id, accounting_id, balance) VALUES " + \
+                    ", ".join(["(%s, %s, %s)"] * len(users))
+            args = [[user, accounting_id, 0][i]
+                    for user in users for i in range(3)]
+            cursor.execute(query, args)
+            self.connection.commit()
+            self.logger.info(f"К расчету {accounting_id} добавлены участники {', '.join(map(str, users))}")
+            wallets = []
+            for user in users:
+                wallets.append(result(self.new_wallet(user)))
+                result(self.set_current_accounting(accounting_id, user))
+            result(self.assign_wallet(accounting_id, users, wallets))
+            return accounting_id
+
+    @try_and_log('Ошибка получения списка расчетов')
+    def accounting_list(self, status):
+        """
+        Получает из БД и возвращает список расчетов
+        Args:
+            status (str): статус выводимых расчетов
+                'ACTIVE' - выводятся только активные расчеты \n
+                'ARCHIVE' - выводятся только закрытые расчеты \n
+                'ALL' - ыводятся все расчеты
+        Returns:
+            list: Список расчетов с заданным статусом.
+            Каждый расчет в списке возвращаятся в виде словаря с ключами:
+                `id` идентификатор \n
+                `name` - название расчета \n
+                `start_time` время открытия \n
+                `end_time` время закрыимя
+
+        """
+        query = "SELECT * FROM accountings "
+        if status.upper() == 'ACTIVE':
+            query += "WHERE start_time IS NOT NULL AND end_time IS NULL"
+        elif status.upper() == 'ARCHIVE':
+            query += "WHERE end_time IS NOT NULL"
+        return result(self.execute(query, fetchall=True))
+
+    @try_and_log('Ошибка подучения названия расчета')
+    def accounting_name(self, acc_id):
+        """
+        Метод возвращает название расчета
+        Args:
+            acc_id (int): ID расчета в БД accountings.id
+        Returns:
+            str: Имя пользователя
+        """
+        with self.connection.cursor() as cursor:
+            query = "SELECT name FROM accountings WHERE id = %s"
             cursor.execute(query, acc_id)
-            wallets = cursor.fetchall()
-            return {wallet['name']: wallet['balance'] for wallet in wallets}
-
-     # noinspection PyTypeChecker
-
-    @try_and_log('Ошибка объединения кошельков')
-    def merge_wallets(self, acc_id, wallets_list, name=None):
-        """
-        Объединяет список кошельков в один. \n
-        Имя нового кошелька складывается из имен кошельков в списке, разделенных символом '+'
-
-        Args:
-            acc_id (int): идентификатор расчета accountings.id
-            wallets_list (list(int)): Список идентификаторов объединяемых кошельков
-            name (str): Название объединенного кошелька
-        """
-        with self.connection.cursor() as cursor:
-            if len(wallets_list) < 2:
-                return
-            wallets = result(self.get_wallet_balance(acc_id, wallets_list))
-            balance = wallets[0]['balance']
-            default_name = name is None
-            if default_name:
-                name = wallets[0]['name']
-            for wallet in wallets[1:]:
-                query = "UPDATE wallet_users SET wallet = %s WHERE wallet = %s"
-                cursor.execute(query, (wallets[0]['id'], wallet['id']))
-                balance += wallet['balance']
-                if default_name:
-                    name += '+' + wallet['name']
-            query = "UPDATE wallets SET balance = %s, name = %s WHERE id = %s"
-            cursor.execute(query, (balance, name, wallets[0]['id']))
-            self.connection.commit()
-            self.logger.info(f"Кошельки {', '.join(map(str, wallets_list))} объединены под номером {wallets_list[0]}")
-            self.logger.info(f"Название нового кошелька: '{name}'")
-            for wallet in wallets[1:]:
-                query = "DELETE FROM wallets WHERE id = %s"
-                cursor.execute(query, wallet['id'])
-            self.connection.commit()
-            self.logger.info(f"Удалены неиспользуемые кошельки {', '.join(map(str, wallets_list[1:]))}")
-
-    @try_and_log('Ошибка выхода пользователя из кошелька')
-    def leave_wallet(self, acc_id, user, name=None):
-        """
-        Метод для выхода пользователя из кошелька \n
-        Имя нового кошелька складывается из имен кошельков в списке, разделенных символом '+'
-
-        Args:
-            acc_id: идентификатор расчета accountings.id
-            user (int): идентификатор пользователя users.id
-            name (str): Новое название кошелька после выхода пользователя
-        """
-        wallet = result(self.my_wallet(acc_id, user))
-        with self.connection.cursor() as cursor:
-            if name is None:
-                query = "SELECT user_id FROM wallet_users WHERE wallet = %s AND user_id != %s"
-                cursor.execute(query, (wallet, user))
-                users = cursor.fetchall()
-                if len(users) == 1:
-                    name = result(self.user_name(users[0]['user_id']))
-                else:
-                    name = result(self.wallet_name(wallet))
-            query = "SELECT balance FROM user_balance WHERE accounting_id = %s AND user_id = %s"
-            cursor.execute(query, (acc_id, user))
-            user_balance = cursor.fetchone()['balance']
-            query = "SELECT user_nic FROM users WHERE id = %s"
-            cursor.execute(query, user)
-            user_nic = cursor.fetchone()['user_nic']
-            query = "SELECT balance FROM wallets WHERE id = %s"
-            cursor.execute(query, wallet)
-            wallet_balance = cursor.fetchone()['balance']
-            query = "INSERT INTO wallets (balance, name) VALUES (%s, %s)"
-            cursor.execute(query, (user_balance, user_nic))
-            cursor.execute("SELECT LAST_INSERT_ID()")
-            new_wallet = cursor.fetchone()['LAST_INSERT_ID()']
-            query = "UPDATE wallets SET balance = %s, name = %s WHERE id = %s"
-            cursor.execute(query, (wallet_balance-user_balance, name, wallet))
-            query = "UPDATE wallet_users SET wallet = %s WHERE user_id = %s"
-            cursor.execute(query, (new_wallet, user))
-            self.connection.commit()
-            self.logger.info(f"Пользователю {user} вышел из кошелька {wallet}")
-            self.logger.info(f"Кошелькам присвоены названия '{name}' и '{user_nic}'")
+            return cursor.fetchone()['name']
 
     # noinspection PyTypeChecker
     @try_and_log('Ошибка присвоения пользователю номера текущего расчета')
@@ -695,35 +494,321 @@ class DebtsServer(object):
             result(self.assign_wallet(acc_id, user, wallet))
             self.update_wallet_balance(acc_id)
 
-    # noinspection PyTypeChecker
-
-    @try_and_log("Ошибка при проверке пользователя")
-    def check_user(self, acc_id=None, user=None):
+    @try_and_log("Ошибка закрытия расчета")
+    def close_accounting(self, acc_id):
         """
-        Если acc_id целое число, проверяет: входит ли пользователь в группу расчета.
-        Если acc_id is None, проверяет его наличие в базе таблице пользователей.
+        Закрывает заданный расчет. \n
+        Если в нем ненулевой баланс (более одного рубля), вызывается исключение
         Args:
             acc_id (int): идентификатор расчета accountings.id
-            user (int): Идентификатор пользователя в БД users.id
         Raises:
-            ValueError: Если проверка не прошла
+            Exception: Если баланс ненулевой
+        """
+        balance = result(self.get_wallet_balance(acc_id))
+        for blnc in balance:
+            if abs(blnc['balance']) >= 1:
+                raise Exception(
+                    'Невозможно закрыть расчет с ненулевым балансом')
+        with self.connection.cursor() as cursor:
+            query = "UPDATE accountings SET end_time = NOW()" \
+                    "WHERE id = %s"
+            cursor.execute(query, acc_id)
+            self.connection.commit()
+            self.logger.info(f"расчет {acc_id} закрыт")
+
+    ######################################################################
+    #                   Методы работы с кошельками                       #
+    ######################################################################
+
+    @try_and_log('Ошибка создания нового кошелька')
+    def new_wallet(self, user, wallet_name=None):
+        """
+        Создает в базе данных новый кошелек для одного пользователя
+        Args:
+            user (int): ID пользователя в БД users.id
+            wallet_name (str, optional): Имя кошелька. По умолчанию: ник пользователя.
+        Returns:
+            int: ID кошелька в БД wallets.id
         """
         with self.connection.cursor() as cursor:
-            if acc_id is not None:
-                query = "SELECT id FROM groups WHERE accounting_id = %s AND user_id = %s"
-                cursor.execute(query, (acc_id, user))
-                where = f"в группе расчета {acc_id}"
-            else:
-                query = "SELECT id FROM users WHERE id = %s"
-                cursor.execute(query, user)
-                where = "в базе данных"
-            users = cursor.fetchall()
-            if len(users) == 0:
-                self.logger.info(f"Пользователь {user} не найден {where}")
-                return False
-            else:
-                self.logger.info(f"Пользователь {user} найден {where}")
-                return True
+            if wallet_name is None:
+                cursor.execute(
+                    "SELECT user_nic FROM users WHERE id = %s", user)
+                wallet_name = cursor.fetchone()['user_nic']
+            cursor.execute(
+                "INSERT INTO wallets (balance, name) VALUES (0, %s)", wallet_name)
+            self.connection.commit()
+            cursor.execute('SELECT LAST_INSERT_ID() AS id')
+            self.logger.info(f"Создан новый кошелек {wallet_name}")
+            return cursor.fetchone()['id']
+
+    @try_and_log('Ошибка подучения названия кошелька')
+    def wallet_name(self, wallet):
+        """
+        Метод возвращает имя пользователя
+        Args:
+            wallet (int): ID кошелька в БД wallets.id
+        Returns:
+            str: Имя кошелька
+        """
+        query = "SELECT name FROM wallets WHERE id = %s"
+        return result(self.execute(query, wallet, fetchone=True))['name']
+
+    @try_and_log('Ошибка присвоения пользователям кошельков')
+    def assign_wallet(self, accounting, users, wallets):
+        """
+        Присваивает пользователям из сиска users кошельки из списка wallets
+        Args:
+            accounting (int): ID расчета в БД accountings.id
+            users (list(int)): Список идентификаторов пользователей
+            wallets (list(int)): Список идентификаторов кошельков
+        """
+        if isinstance(users, int):
+            users = [users]
+            wallets = [wallets]
+        with self.connection.cursor() as cursor:
+            query = "INSERT INTO wallet_users (user_id, accounting_id, wallet) VALUES " + \
+                    ", ".join(["(%s, %s, %s)"] * len(users))
+            args = [[users[i], accounting, wallets[i]][j]
+                    for i in range(len(users)) for j in range(3)]
+            cursor.execute(query, args)
+            self.connection.commit()
+            self.logger.info(f"Участникам {', '.join(map(str, users))} "
+                             f"присвоены кошельки {', '.join(map(str, wallets))}")
+
+    @try_and_log('Ошибка получения списка пользователей кошелька')
+    def wallet_users(self, acc_id, user=None, wallet=None):
+        """
+        Возвращает список пользователей входящих в один кошелек \n
+        Кошелек задается или явно через ID (wallets.id) или через ID пользователя и расчета.
+        Если задано и то и другое, поиск ведется по ID пользователя и расчета
+        Args:
+            acc_id (int): ID расчета в БД accountings.id
+            user (int):   ID пользователя в БД users.id
+            wallet (int): ID кошелька в БД wallets.id
+        Returns:
+            list(int):  список идентификаторов пользователей
+
+        """
+        if user is not None:
+            wallet = result(self.my_wallet(acc_id, user))
+        if wallet is None:
+            return []
+        with self.connection.cursor() as cursor:
+            query = "SELECT user_id FROM wallet_users WHERE wallet = %s"
+            cursor.execute(query, wallet)
+            return [user['user_id'] for user in cursor.fetchall()]
+
+    @try_and_log('Ошибка получения номера собственного кошелька')
+    def my_wallet(self, acc_id, user):
+        """
+            Возвращает идентификатор кошелька, к которому присединет пользователь
+            Args:
+                acc_id (int): идентификатор расчета accountings.id
+                user: идентификаторр пользователя в БД users.id
+            Returns:
+                int: идентификатор кошелька wallet_users.wallet
+        """
+        with self.connection.cursor() as cursor:
+            query = "SELECT wallet FROM wallet_users WHERE accounting_id = %s AND user_id = %s"
+            cursor.execute(query, (acc_id, user))
+            return cursor.fetchone()['wallet']
+
+    @try_and_log('Ошибка получения списка чужих кошельков')
+    def others_wallets(self, acc_id, user):
+        """
+            Возвращает список идентификаторов чужих кошельков
+            Args:
+                acc_id (int): идентификатор расчета accountings.id
+                user: идентификаторр пользователя в БД users.id
+            Returns:
+                lst(int): список идентификаторов кошельков wallet_users.wallet
+        """
+        my_wallet = self.my_wallet(acc_id, user)[0]
+        with self.connection.cursor() as cursor:
+            query = "SELECT DISTINCT wallet FROM wallet_users WHERE accounting_id = %s"
+            cursor.execute(query, acc_id)
+            all_wallets = [wlt['wallet'] for wlt in cursor.fetchall()]
+            all_wallets.remove(my_wallet)
+            return all_wallets
+
+    @try_and_log('Ошибка получения баласов кошельков')
+    def wallet_balances(self, acc_id):
+        """
+            Возвращает словарь состоящий из имен и балансов всех кошельков расчета
+            Args:
+                acc_id (int): идентификатор расчета accountings.id
+            Returns:
+                dict: словарь: ключи - названия кошельков; значения - балансы
+        """
+        with self.connection.cursor() as cursor:
+            query = ("SELECT wallets.name as name, wallets.balance as balance "
+                     "FROM wallet_users JOIN wallets ON wallet_users.wallet = wallets.id "
+                     "WHERE accounting_id = %s")
+            cursor.execute(query, acc_id)
+            wallets = cursor.fetchall()
+            return {wallet['name']: wallet['balance'] for wallet in wallets}
+
+    # noinspection PyTypeChecker
+    @try_and_log('Ошибка объединения кошельков')
+    def merge_wallets(self, acc_id, wallets_list, name=None):
+        """
+        Объединяет список кошельков в один. \n
+        Имя нового кошелька складывается из имен кошельков в списке, разделенных символом '+'
+
+        Args:
+            acc_id (int): идентификатор расчета accountings.id
+            wallets_list (list(int)): Список идентификаторов объединяемых кошельков
+            name (str): Название объединенного кошелька
+        """
+        with self.connection.cursor() as cursor:
+            if len(wallets_list) < 2:
+                return
+            wallets = result(self.get_wallet_balance(acc_id, wallets_list))
+            balance = wallets[0]['balance']
+            default_name = name is None
+            if default_name:
+                name = wallets[0]['name']
+            for wallet in wallets[1:]:
+                query = "UPDATE wallet_users SET wallet = %s WHERE wallet = %s"
+                cursor.execute(query, (wallets[0]['id'], wallet['id']))
+                balance += wallet['balance']
+                if default_name:
+                    name += '+' + wallet['name']
+            query = "UPDATE wallets SET balance = %s, name = %s WHERE id = %s"
+            cursor.execute(query, (balance, name, wallets[0]['id']))
+            self.connection.commit()
+            self.logger.info(f"Кошельки {', '.join(map(str, wallets_list))} объединены под номером {wallets_list[0]}")
+            self.logger.info(f"Название нового кошелька: '{name}'")
+            for wallet in wallets[1:]:
+                query = "DELETE FROM wallets WHERE id = %s"
+                cursor.execute(query, wallet['id'])
+            self.connection.commit()
+            self.logger.info(f"Удалены неиспользуемые кошельки {', '.join(map(str, wallets_list[1:]))}")
+
+    @try_and_log('Ошибка выхода пользователя из кошелька')
+    def leave_wallet(self, acc_id, user, name=None):
+        """
+        Метод для выхода пользователя из кошелька \n
+        Имя нового кошелька складывается из имен кошельков в списке, разделенных символом '+'
+
+        Args:
+            acc_id: идентификатор расчета accountings.id
+            user (int): идентификатор пользователя users.id
+            name (str): Новое название кошелька после выхода пользователя
+        """
+        wallet = result(self.my_wallet(acc_id, user))
+        with self.connection.cursor() as cursor:
+            if name is None:
+                query = "SELECT user_id FROM wallet_users WHERE wallet = %s AND user_id != %s"
+                cursor.execute(query, (wallet, user))
+                users = cursor.fetchall()
+                if len(users) == 1:
+                    name = result(self.user_name(users[0]['user_id']))
+                else:
+                    name = result(self.wallet_name(wallet))
+            query = "SELECT balance FROM user_balance WHERE accounting_id = %s AND user_id = %s"
+            cursor.execute(query, (acc_id, user))
+            user_balance = cursor.fetchone()['balance']
+            query = "SELECT user_nic FROM users WHERE id = %s"
+            cursor.execute(query, user)
+            user_nic = cursor.fetchone()['user_nic']
+            query = "SELECT balance FROM wallets WHERE id = %s"
+            cursor.execute(query, wallet)
+            wallet_balance = cursor.fetchone()['balance']
+            query = "INSERT INTO wallets (balance, name) VALUES (%s, %s)"
+            cursor.execute(query, (user_balance, user_nic))
+            cursor.execute("SELECT LAST_INSERT_ID()")
+            new_wallet = cursor.fetchone()['LAST_INSERT_ID()']
+            query = "UPDATE wallets SET balance = %s, name = %s WHERE id = %s"
+            cursor.execute(query, (wallet_balance-user_balance, name, wallet))
+            query = "UPDATE wallet_users SET wallet = %s WHERE user_id = %s"
+            cursor.execute(query, (new_wallet, user))
+            self.connection.commit()
+            self.logger.info(f"Пользователю {user} вышел из кошелька {wallet}")
+            self.logger.info(f"Кошелькам присвоены названия '{name}' и '{user_nic}'")
+
+    # noinspection PyTypeChecker
+    @try_and_log("Ошибка обновления баланса")
+    def update_wallet_balance(self, acc_id):
+        """
+        Обновляет значения балансов кошельков. \n
+        Суммирует балансы пользователей, привязанных к кошельку
+        Args:
+            acc_id (int): идентификатор расчета accountings.id
+        """
+        with self.connection.cursor() as cursor:
+            wallets = result(self.get_wallet_balance(acc_id))
+            for wallet in wallets:
+                query = "SELECT SUM(balance) AS balance FROM user_balance " \
+                        "WHERE user_id in (SELECT user_id FROM wallet_users WHERE wallet = %s) " \
+                        "AND accounting_id = %s"
+                cursor.execute(query, (wallet['id'], acc_id))
+                balance = cursor.fetchone()['balance']
+                query = "UPDATE wallets SET balance = %s WHERE id = %s"
+                cursor.execute(query, [balance, wallet['id']])
+                self.logger.info(
+                    f"Обновлен баланс кошелька {wallet['id']}: {balance}")
+            self.connection.commit()
+
+    @try_and_log("Ошибка получения баланса")
+    def get_wallet_balance(self, acc_id, wallet_list=None):
+        """
+        Возвращает баланс расчета в виде списка словарей с ключами
+            'id' - идентификатор кошелька \n
+            'name' - название кошелька \n
+            'balance' - текущий баланс кошелька
+        Args:
+            acc_id (int): идентификатор расчета accountings.id
+            wallet_list (int/list(int), optional): идентификатор или список идентификаторов баланса кошелька
+        Returns:
+            list: баланс
+        """
+        with self.connection.cursor() as cursor:
+            query = "SELECT id, name, balance FROM wallets " \
+                    "WHERE id in (SELECT wallet FROM wallet_users " \
+                    "WHERE wallet_users.accounting_id = %s) "
+            args = [acc_id]
+            if wallet_list is not None:
+                if isinstance(wallet_list, int):
+                    wallet_list = (wallet_list,)
+                query += "AND id in(" + \
+                    ", ".join(['%s'] * len(wallet_list)) + ")"
+                args += wallet_list
+            cursor.execute(query, args)
+            res = cursor.fetchall()
+            return res
+
+    ######################################################################
+    #                   Методы работы с документами                      #
+    ######################################################################
+
+    # noinspection PyTypeChecker
+    @try_and_log('Ошибка добавления пользователя к документу "Покупка')
+    def add_user_to_purchase(self, acc_id, user, doc):
+        """
+        Добавляет пользователя в множество бенефициаров покупки
+        Args:
+            acc_id (int): идентификатор расчета accountings.id
+            user (int): идентификаторр пользователя в БД users.id
+            doc (int): идентификаторр документа покупки в БД purchase_docs.id
+        """
+        with self.connection.cursor() as cursor:
+            self.post_purchase_doc(acc_id, doc, reject=True)
+            query = "SELECT bnfcr_group FROM purchase_docs WHERE id = %s"
+            cursor.execute(query, doc)
+            bnfcr = cursor.fetchone()['bnfcr_group']
+            users = result(self.get_beneficiaries(bnfcr))
+            if user not in users:
+                users.append(user)
+            bnfcr = result(self.beneficiaries(users))
+            query = "UPDATE purchase_docs SET bnfcr_group = %s WHERE id = %s"
+            cursor.execute(query, [bnfcr, doc])
+            self.connection.commit()
+            self.logger.info(f"Пользователь {user} добавлен к списку бенефициаров документа покупки {doc}")
+            self.post_purchase_doc(acc_id, doc, reject=False)
+
+    # noinspection PyTypeChecker
 
     # noinspection PyTypeChecker
     @try_and_log("Ошибка создания документа 'Покупка'")
@@ -814,8 +899,7 @@ class DebtsServer(object):
             for user in users:
                 query = "SELECT balance FROM user_balance WHERE user_id = %s AND accounting_id = %s"
                 cursor.execute(query, [user['user_id'], acc_id])
-                user['balance'] = round(
-                    cursor.fetchone()['balance'] - sign * document['amount'] / len(users), 2)
+                user['balance'] = round(cursor.fetchone()['balance'] - sign * document['amount'] / len(users), 2)
                 if user['user_id'] == document['purchaser']:
                     user['balance'] += sign * document['amount']
                 query = "UPDATE user_balance SET balance = %s WHERE user_id = %s AND accounting_id = %s"
@@ -903,75 +987,9 @@ class DebtsServer(object):
 
     # БАЛАНС
 
-    # noinspection PyTypeChecker
-    @try_and_log("Ошибка обновления баланса")
-    def update_wallet_balance(self, acc_id):
-        """
-        Обновляет значения балансов кошельков. \n
-        Суммирует балансы пользователей, привязанных к кошельку
-        Args:
-            acc_id (int): идентификатор расчета accountings.id
-        """
-        with self.connection.cursor() as cursor:
-            wallets = result(self.get_wallet_balance(acc_id))
-            for wallet in wallets:
-                query = "SELECT SUM(balance) AS balance FROM user_balance " \
-                        "WHERE user_id in (SELECT user_id FROM wallet_users WHERE wallet = %s) " \
-                        "AND accounting_id = %s"
-                cursor.execute(query, (wallet['id'], acc_id))
-                balance = cursor.fetchone()['balance']
-                query = "UPDATE wallets SET balance = %s WHERE id = %s"
-                cursor.execute(query, [balance, wallet['id']])
-                self.logger.info(
-                    f"Обновлен баланс кошелька {wallet['id']}: {balance}")
-            self.connection.commit()
-
-    @try_and_log("Ошибка получения баланса")
-    def get_user_balance(self, acc_id):
-        """
-        Возвращает баланс расчета в виде списка словарей с ключами
-            'user_id' - идентификатор пользователя \n
-            'user_nic' - ник пользователя \n
-            'balance' - текущий баланс пользователя
-        Args:
-            acc_id (int): идентификатор расчета accountings.id
-        Returns:
-            list: баланс
-        """
-        with self.connection.cursor() as cursor:
-            query = "SELECT user_id, user_nic, balance FROM user_balance " \
-                    "JOIN users ON user_balance.user_id = users.id " \
-                    "WHERE accounting_id = %s"
-            cursor.execute(query, acc_id)
-            return cursor.fetchall()
-
-    @try_and_log("Ошибка получения баланса")
-    def get_wallet_balance(self, acc_id, wallet_list=None):
-        """
-        Возвращает баланс расчета в виде списка словарей с ключами
-            'id' - идентификатор кошелька \n
-            'name' - название кошелька \n
-            'balance' - текущий баланс кошелька
-        Args:
-            acc_id (int): идентификатор расчета accountings.id
-            wallet_list (int/list(int), optional): идентификатор или список идентификаторов баланса кошелька
-        Returns:
-            list: баланс
-        """
-        with self.connection.cursor() as cursor:
-            query = "SELECT id, name, balance FROM wallets " \
-                    "WHERE id in (SELECT wallet FROM wallet_users " \
-                    "WHERE wallet_users.accounting_id = %s) "
-            args = [acc_id]
-            if wallet_list is not None:
-                if isinstance(wallet_list, int):
-                    wallet_list = (wallet_list,)
-                query += "AND id in(" + \
-                    ", ".join(['%s'] * len(wallet_list)) + ")"
-                args += wallet_list
-            cursor.execute(query, args)
-            res = cursor.fetchall()
-            return res
+    ######################################################################
+    #                   Методы для получения отчетов                     #
+    ######################################################################
 
     @try_and_log("Ошибка вывода полного отчета")
     def total_report(self, acc_id):
