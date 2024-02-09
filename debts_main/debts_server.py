@@ -262,6 +262,18 @@ class DebtsServer(object):
 
     @try_and_log('Ошибка получения списка пользователей кошелька')
     def wallet_users(self, acc_id, user=None, wallet=None):
+        """
+        Возвращает список пользователей входящих в один кошелек \n
+        Кошелек задается или явно через ID (wallets.id) или через ID пользователя и расчета.
+        Если задано и то и другое, поиск ведется по ID пользователя и расчета
+        Args:
+            acc_id (int): ID расчета в БД accountings.id
+            user (int):   ID пользователя в БД users.id
+            wallet (int): ID кошелька в БД wallets.id
+        Returns:
+            list(int):  список идентификаторов пользователей
+
+        """
         if user is not None:
             wallet = result(self.my_wallet(acc_id, user))
         if wallet is None:
@@ -550,12 +562,13 @@ class DebtsServer(object):
             query = "UPDATE wallets SET balance = %s, name = %s WHERE id = %s"
             cursor.execute(query, [balance, name, wallets[0]['id']])
             self.connection.commit()
+            self.logger.info(f"Кошельки {', '.join(wallets_list)} объединены под номером {wallets_list[0]}")
+            self.logger.info(f"Название нового кошелька: '{name}'")
             for wallet in wallets[1:]:
                 query = "DELETE FROM wallets WHERE id = %s"
                 cursor.execute(query, wallet['id'])
             self.connection.commit()
-            self.logger.info(f"Кошельки {', '.join(wallets_list)} объединены под номером {wallets_list[0]}")
-            self.logger.info(f"Название нового кошелька: '{name}'")
+            self.logger.info(f"Удалены неиспользуемые кошельки {', '.join(wallets_list[1:])}")
 
     @try_and_log('Ошибка выхода пользователя из кошелька')
     def leave_wallet(self, acc_id, user, name=None):
