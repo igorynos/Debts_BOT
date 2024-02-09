@@ -534,7 +534,7 @@ class DebtsServer(object):
 
      # noinspection PyTypeChecker
 
-    @try_and_log('Ошибка объединения кошелков')
+    @try_and_log('Ошибка объединения кошельков')
     def merge_wallets(self, acc_id, wallets_list, name=None):
         """
         Объединяет список кошельков в один. \n
@@ -548,6 +548,7 @@ class DebtsServer(object):
         with self.connection.cursor() as cursor:
             if len(wallets_list) < 2:
                 return
+            self.logger.info(f"Объединяются кошельки {', '.join(wallets_list)}")
             wallets = result(self.get_wallet_balance(acc_id, wallets_list))
             balance = wallets[0]['balance']
             default_name = name is None
@@ -555,12 +556,14 @@ class DebtsServer(object):
                 name = wallets[0]['name']
             for wallet in wallets[1:]:
                 query = "UPDATE wallet_users SET wallet = %s WHERE wallet = %s"
-                cursor.execute(query, [wallets[0]['id'], wallet['id']])
+                cursor.execute(query, (wallets[0]['id'], wallet['id']))
+                self.logger.info(f"замена кошелька {wallet['id']}, на {wallets[0]['id']}")
                 balance += wallet['balance']
                 if default_name:
                     name += '+' + wallet['name']
             query = "UPDATE wallets SET balance = %s, name = %s WHERE id = %s"
-            cursor.execute(query, [balance, name, wallets[0]['id']])
+            cursor.execute(query, (balance, name, wallets[0]['id']))
+            self.logger.info(f"баланс кошелька {wallets[0]['id']} '{name}' - {balance} ")
             self.connection.commit()
             self.logger.info(f"Кошельки {', '.join(wallets_list)} объединены под номером {wallets_list[0]}")
             self.logger.info(f"Название нового кошелька: '{name}'")
