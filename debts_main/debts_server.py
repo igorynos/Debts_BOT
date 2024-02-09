@@ -697,7 +697,7 @@ class DebtsServer(object):
 
     # noinspection PyTypeChecker
 
-    @try_and_log("Ошибка проверки пользователя")
+    @try_and_log("Ошибка при проверке пользователя")
     def check_user(self, acc_id=None, user=None):
         """
         Если acc_id целое число, проверяет: входит ли пользователь в группу расчета.
@@ -712,12 +712,18 @@ class DebtsServer(object):
             if acc_id is not None:
                 query = "SELECT id FROM groups WHERE accounting_id = %s AND user_id = %s"
                 cursor.execute(query, (acc_id, user))
+                where = f"в группе расчета {acc_id}"
             else:
                 query = "SELECT id FROM users WHERE id = %s"
                 cursor.execute(query, user)
+                where = "в базе данных"
             users = cursor.fetchall()
             if len(users) == 0:
-                raise ValueError('Проверка пользователя не прошла')
+                self.logger.info(f"Пользователь {user} не найден {where}")
+                return False
+            else:
+                self.logger.info(f"Пользователь {user} найден {where}")
+                return True
 
     # noinspection PyTypeChecker
     @try_and_log("Ошибка создания документа 'Покупка'")
@@ -741,7 +747,8 @@ class DebtsServer(object):
                 result(self.get_group_users(acc_id))))
         else:
             bnfcr_repr = str(bnfcr)
-        result(self.check_user(acc_id, purchaser))
+        if not result(self.check_user(acc_id, purchaser)):
+            return None
         with self.connection.cursor() as cursor:
             query = "INSERT INTO purchase_docs (purchaser, accounting_id, bnfcr_group, amount, comment) " \
                     "VALUES (%s, %s, %s, %s, %s) "
@@ -768,8 +775,10 @@ class DebtsServer(object):
         Returns:
             int: Идентификатор документа платежа в БД paymet_docs.id
         """
-        result(self.check_user(acc_id, payer))
-        result(self.check_user(acc_id, recipient))
+        if not result(self.check_user(acc_id, payer)):
+            return None
+        if not result(self.check_user(acc_id, recipient)):
+            return None
         with self.connection.cursor() as cursor:
             query = "INSERT INTO payment_docs (payer, recipient, accounting_id, amount, comment) " \
                     "VALUES (%s, %s, %s, %s, %s) "

@@ -13,7 +13,8 @@ def purchase():
     usr = int(input("покупатель: "))
     amnt = int(input("сумма: "))
     cmnt = input("комментарий: ")
-    result(server.add_purchase_doc(accounting, usr, amnt, bnfcr=None, comment=cmnt))
+    if not result(server.add_purchase_doc(accounting, usr, amnt, bnfcr=None, comment=cmnt)):
+        print('Документ не добавлен')
 
 
 def add_payment():
@@ -22,7 +23,8 @@ def add_payment():
     rcpnt = int(input("получатель: "))
     amnt = int(input("сумма: "))
     cmnt = input("комментарий: ")
-    result(server.add_payment_doc(accounting, pyr, rcpnt, amnt, comment=cmnt))
+    if not result(server.add_payment_doc(accounting, pyr, rcpnt, amnt, comment=cmnt)):
+        print('Документ не добавлен')
 
 
 def reg_user():

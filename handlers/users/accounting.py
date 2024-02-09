@@ -51,9 +51,8 @@ async def accounting(call: types.CallbackQuery, callback_data: dict, state: FSMC
 @dp.callback_query_handler(text='join_acc')
 async def join_acc1(call: types.CallbackQuery, state: FSMContext):
     obj = server.check_user(
-        acc_id=dict_temp_acc[f"{call.message.chat.id}"], user=call.message.chat.id)
-    print(obj)
-    if obj[1] == 'OK':
+        acc_id=dict_temp_acc[f"{call.message.chat.id}"], user=call.message.chat.id)[0]
+    if obj:
         server.set_current_accounting(
             acc_id=dict_temp_acc[f"{call.message.chat.id}"], user=call.message.chat.id)
         await active_acc(call.message)
