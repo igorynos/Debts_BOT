@@ -548,7 +548,6 @@ class DebtsServer(object):
         with self.connection.cursor() as cursor:
             if len(wallets_list) < 2:
                 return
-            self.logger.info(f"Объединяются кошельки {', '.join(wallets_list)}")
             wallets = result(self.get_wallet_balance(acc_id, wallets_list))
             balance = wallets[0]['balance']
             default_name = name is None
@@ -557,21 +556,19 @@ class DebtsServer(object):
             for wallet in wallets[1:]:
                 query = "UPDATE wallet_users SET wallet = %s WHERE wallet = %s"
                 cursor.execute(query, (wallets[0]['id'], wallet['id']))
-                self.logger.info(f"замена кошелька {wallet['id']}, на {wallets[0]['id']}")
                 balance += wallet['balance']
                 if default_name:
                     name += '+' + wallet['name']
             query = "UPDATE wallets SET balance = %s, name = %s WHERE id = %s"
             cursor.execute(query, (balance, name, wallets[0]['id']))
-            self.logger.info(f"баланс кошелька {wallets[0]['id']} '{name}' - {balance} ")
             self.connection.commit()
-            self.logger.info(f"Кошельки {', '.join(wallets_list)} объединены под номером {wallets_list[0]}")
+            self.logger.info(f"Кошельки {', '.join(map(str, wallets_list))} объединены под номером {wallets_list[0]}")
             self.logger.info(f"Название нового кошелька: '{name}'")
             for wallet in wallets[1:]:
                 query = "DELETE FROM wallets WHERE id = %s"
                 cursor.execute(query, wallet['id'])
             self.connection.commit()
-            self.logger.info(f"Удалены неиспользуемые кошельки {', '.join(wallets_list[1:])}")
+            self.logger.info(f"Удалены неиспользуемые кошельки {', '.join(map(str, wallets_list[1:]))}")
 
     @try_and_log('Ошибка выхода пользователя из кошелька')
     def leave_wallet(self, acc_id, user, name=None):
