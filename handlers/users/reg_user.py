@@ -14,9 +14,9 @@ async def register_new_user_1(message: types.Message, state=FSMContext):
 async def name_acc(message: types.Message, state: FSMContext):
     nic = message.text
     await state.finish()
-    try:
-        server.reg_user(user_id=message.chat.id, nic=nic)
+    result = server.reg_user(user_id=message.chat.id, nic=nic)
+    if result[1] == 'OK':
         await message.answer(
             f"Зарегистрирован новый пользователь {nic}", reply_markup=main_menu(message=message))
-    except ValueError('Пользователь с таким id уже зарегистрирован'):
+    else:
         await message.answer('Пользователь с таким id уже зарегистрирован')

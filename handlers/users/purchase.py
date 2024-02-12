@@ -24,11 +24,16 @@ async def purchase3(message: types.Message, state: FSMContext):
     await state.finish()
     acc_id = server.get_current_accounting(user=message.chat.id)
     purch = message.chat.id
-    amount = float(data['sum'].replace(',', '.'))
-    comment = message.text
 
-    server.add_purchase_doc(
-        acc_id=acc_id[0], purchaser=purch, amount=amount, comment=comment)
+    try:
+        amount = float(data['sum'].replace(',', '.'))
+        comment = message.text
+        result = server.add_purchase_doc(
+            acc_id=acc_id[0], purchaser=purch, amount=amount, comment=comment)
+        if result[1] != 'OK':
+            raise Exception
+        await message.answer(f'Покупка {comment} на сумму {amount} добавлена')
+    except:
+        await message.answer(f'Произошла ошибка!\nПроверьте данные ввода')
 
-    await message.answer(f'Покупка {comment} на сумму {amount} добавлена')
     await active_acc(message)
