@@ -44,23 +44,22 @@ def pay_lst(message: types.Message):
     return change_card
 
 
-def merge_wallets_keyboard(message: types.Message, del_user=None):
+def merge_wallets_keyboard(message: types.Message, del_wallets=None):
     change_card = InlineKeyboardMarkup()
 
     acc = server.get_current_accounting(user=message.chat.id)[0]
-    lst_users = server.get_group_users(acc)[0]
-    lst_users = list(lst_users)
+    lst_wallets = server.others_wallets(acc, message.chat.id)[0]
+    lst_wallets = list(lst_wallets)
 
-    if del_user is not None:
-        for x in del_user:
-            lst_users.remove(int(x))
+    if del_wallets is not None:
+        for wallet in del_wallets:
+            lst_wallets.remove(int(wallet))
 
-    for x in lst_users:
-        if x != message.chat.id:
-            nic = server.user_name(x)
+    for wallet in lst_wallets:
+        wallet_name = server.wallet_name(wallet)[0]
 
-            change_card.add(InlineKeyboardButton(
-                text=f"{nic[0]}", callback_data=merge_wallets_callback.new(id=x)))
+        change_card.add(InlineKeyboardButton(
+            text=f"{wallet_name}", callback_data=merge_wallets_callback.new(id=wallet)))
     change_card.add(InlineKeyboardButton(
         text=f"✅ Объединить", callback_data='accept_merge_wallets'))
     return change_card
