@@ -19,12 +19,6 @@ class ArgListUser:
             self.acc, self.user_id, self.wallet)[0]
 
 
-async def accept_leave_wallets(message: types.Message):
-    user = dict_user[f"{message.chat.id}"]
-    text = f'Отделить свой кошелек от кошелька {user.wallet_name}?'
-    await message.answer(text=text, reply_markup=accept_to_leave)
-
-
 @dp.callback_query_handler(text='leave_wallet')
 async def start_leave_wallet(call: types.CallbackQuery):
     id = call.message.chat.id
@@ -43,11 +37,15 @@ async def accept_leave_wallets(message: types.Message):
 async def check_other_users(call: types.CallbackQuery):
     user = dict_user[f"{call.message.chat.id}"]
     if len(user.wallet_users) <= 2:
-        server.leave_wallet(user.acc, user.user_id)
-        await call.message.answer(text=f'Вы покинули {user.wallet_name}?', reply_markup=active_acc)
+        result = server.leave_wallet(user.acc, user.user_id)
+        if result[1] == "OK":
+            await call.message.answer(text=f'Вы покинули {user.wallet_name}')
+        else:
+            await call.message.answer(text=result[1].split(':')[0])
+        await active_acc(call.message)
     else:
-        await call.message.answer(text=f'Оставить прежнее название кошелька, из которого Вы выходите?\n"{user.wallet_name}"', reply_markup=accept_to_change_name_wallet)
-
+        await call.message.answer(text=f'Оставить прежнее название кошелька, из которого Вы выходите?\n'
+                                       f'"{user.wallet_name}"', reply_markup=accept_to_change_name_wallet)
 
 @dp.callback_query_handler(text='accept_to_leave_no')
 async def exit_leave_wallet(call: types.CallbackQuery):
@@ -58,7 +56,7 @@ async def exit_leave_wallet(call: types.CallbackQuery):
 async def leave_wallet_old_name(call: types.CallbackQuery):
     user = dict_user[f"{call.message.chat.id}"]
     server.leave_wallet(user.acc, user.user_id, user.wallet_name)
-    await call.message.answer(text=f'Вы покинули {user.wallet_name}?')
+    await call.message.answer(text=f'Вы покинули {user.wallet_name}')
     await active_acc(call.message)
 
 
