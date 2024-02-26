@@ -59,7 +59,7 @@ class DebtsServer(object):
     и содержит методы для работы с пользователями и расчетами
     """
 
-    def __init__(self):
+    def __init__(self, msg_cbs=None):
         """
         Инициализация DebtsServer. \n
         Параметры БД считывает из файла .env \n
@@ -107,6 +107,7 @@ class DebtsServer(object):
             self.logger.info('Подключение выполнено успешно')
         except pymysql.err.OperationalError:
             self.logger.error('Невозможно подключиться к базе данных')
+        self.msg_cbs = msg_cbs
 
     @try_and_log('Ошибка исполнения внешнего запроса')
     def execute(self, query: str, parameters: tuple = None, fetchone=False, fetchall=False, commit=False):
@@ -849,6 +850,7 @@ class DebtsServer(object):
             self.logger.info(f"Создан документ покупки {doc}. "
                              f"Плательщик: {purchaser}, сумма: {amount}, группа бенефициаров: {bnfcr_repr}")
             result(self.post_purchase_doc(acc_id, doc))
+            result(self.message_purchase(doc))
             return doc
 
     # noinspection PyTypeChecker
@@ -1034,7 +1036,8 @@ class DebtsServer(object):
                     cursor.execute(query, wallet['wallet'])
                     users = cursor.fetchall()
                     for user in users:
-                        query = ("SELECT time, comment, amount FROM purchase_docs "
+                        query = ("SELECT purchase_docs.id, time, comment, amount "
+                                 "FROM purchase_docs "
                                  "WHERE accounting_id = %s AND purchaser = %s")
                         cursor.execute(query, (acc_id, user['id']))
                         docs = cursor.fetchall()
@@ -1043,14 +1046,15 @@ class DebtsServer(object):
                         report.write(f"  Покупки {user['user_nic']} \n")
                         for doc in docs:
                             report.write(
-                                f"    {str(doc['time'])[:-3]}:   {doc['comment']}  -  {doc['amount']} \n")
+                                f"    {doc['id']:06} от {str(doc['time'])[:-3]} \n"
+                                f"{' '*10}{doc['comment']}:   {doc['amount']} \n")
                         query = ("SELECT SUM(amount) as user_sum FROM purchase_docs "
                                  "WHERE purchaser = %s AND accounting_id = %s")
                         cursor.execute(query, (user['id'], acc_id))
                         user_sum = cursor.fetchone()['user_sum']
                         wallet_sum += user_sum
-                        report.write(' '*24 + f"ИТОГО ({user['user_nic']}):   {user_sum} \n")
-                    report.write(' ' * 24 + f"ИТОГО ({wallet['name']}):   {wallet_sum} \n")
+                        report.write(f"    ИТОГО ({user['user_nic']}):   {user_sum} \n")
+                    report.write(f"    ИТОГО ({wallet['name']}):   {wallet_sum} \n")
                 report.write(f"\nПЛАТЕЖИ\n")
                 for wallet in wallets:
                     query = ("SELECT users.id, users.user_nic FROM wallet_users "
@@ -1059,7 +1063,8 @@ class DebtsServer(object):
                     cursor.execute(query, wallet['wallet'])
                     users = cursor.fetchall()
                     for user in users:
-                        query = ("SELECT time, users.user_nic AS recipient, comment, amount FROM payment_docs "
+                        query = ("SELECT payment_docs.id, time, users.user_nic AS recipient, comment, amount "
+                                 "FROM payment_docs "
                                  "JOIN users ON users.id = recipient "
                                  "WHERE accounting_id = %s AND payer = %s "
                                  "ORDER BY recipient")
@@ -1069,8 +1074,8 @@ class DebtsServer(object):
                             continue
                         report.write(f"  Платежи {user['user_nic']} \n")
                         for doc in docs:
-                            report.write(f"    {str(doc['time'])[:-3]}:  -> {doc['recipient']}  "
-                                         f"({doc['comment']})  -  {doc['amount']} \n")
+                            report.write(f"   {doc['id']:06} от {str(doc['time'])[:-3]} -> {doc['recipient']} \n"
+                                         f"{' '*10}{doc['comment']}:   {doc['amount']} \n")
                 report.write(f"\nБАЛАНС\n")
                 for wallet in wallets:
                     report.write(
@@ -1078,3 +1083,25 @@ class DebtsServer(object):
                 self.logger.info(
                     f"Отчет по расчету {acc_id} сохранен в файле {file_name}")
             return file_name
+
+    ######################################################################
+    #                   Методы для отправки сообщний                     #
+    ######################################################################
+
+    @try_and_log("Ошибка отправки сообщения о покупке")
+    def message_purchase(self, doc_id):
+        query = ("SELECT purchaser, amount, comment, time, bnfcr_group "
+                 "FROM purchase_docs "
+                 "WHERE id = %s")
+        doc = result(self.execute(query, doc_id, fetchone=True))
+
+        msg = (f"{result(self.user_name(doc['purchaser']))} совершил покупку \n"
+               f"{doc['comment']} \n"
+               f"на сумму {doc['amount']} \n"
+               f"документ №{doc_id} от {str(doc['time'])[:-3]}")
+
+        query = "SELECT user_id FROM beneficiaries WHERE id = %s"
+        bnfcars = [result(self.user_name(user['user_id']))
+                   for user in result(self.execute(query, doc['bnfcr_group'], fetchall=True))]
+        if self.msg_cbs is not None:
+            self.msg_cbs(msg, bnfcars)

@@ -1,6 +1,11 @@
 import debts_server
 
 
+new_msg = False
+msg_text = ''
+msg_users = []
+
+
 def result(res):
     if isinstance(res, tuple):
         if res[1] != 'OK':
@@ -136,8 +141,15 @@ def close_accounting():
     accounting = None
 
 
+def message_cbs(msg, users):
+    global  new_msg, msg_text, msg_users
+    new_msg = True
+    msg_text = msg
+    msg_users = users
+
+
 if __name__ == '__main__':
-    server = debts_server.DebtsServer()
+    server = debts_server.DebtsServer(message_cbs)
     accounting = None
     user = None
 
@@ -231,3 +243,8 @@ if __name__ == '__main__':
             print(result(server.get_current_accounting(1)))
         else:
             print('Неизвестная команда')
+
+        if new_msg:
+            new_msg = False
+            print(msg_text)
+            print(*msg_users)

@@ -11,5 +11,5 @@ IP = env.str("ip")  # Тоже str, но для айпи адреса хоста
 PORT = env.int("PORT")
 PGUSER = env.str("PGUSER")
 PGPASSWORD = env.str("PGPASSWORD")
-# DATABASE = env.str("DATABASE_TEST")
-DATABASE = env.str("DATABASE")
+DATABASE = env.str("DATABASE_TEST")
+# DATABASE = env.str("DATABASE")
