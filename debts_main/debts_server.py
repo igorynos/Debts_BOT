@@ -1020,13 +1020,14 @@ class DebtsServer(object):
                          f"{datetime.now().year}{datetime.now().month:02}{datetime.now().day:02}_"
                          f"{datetime.now().hour:02}{datetime.now().minute:02}{datetime.now().second:02}"
                          f"{(datetime.now().microsecond//10000):02}.txt").replace(' ', '_')
-            with open(f"Reports/{file_name}", 'w') as report:
+            with open(f"Reports/{file_name}", 'w', encoding='utf-8') as report:
                 report.write(f'Отчет по расчету "{res["name"]}" \n')
                 report.write(f'время начала: {res["start_time"]} \n')
                 report.write(
                     f'время окончания: {res["end_time"] if res["end_time"] is not None else "-" } \n')
                 report.write(f"\nПОКУПКИ\n")
                 for wallet in wallets:
+                    wallet_sum = 0
                     query = ("SELECT users.id, users.user_nic FROM wallet_users "
                              "JOIN users ON users.id = wallet_users.user_id "
                              "WHERE wallet = %s")
@@ -1042,7 +1043,14 @@ class DebtsServer(object):
                         report.write(f"  Покупки {user['user_nic']} \n")
                         for doc in docs:
                             report.write(
-                                f"    {doc['time']}:     {doc['comment']}  -  {doc['amount']} \n")
+                                f"    {str(doc['time'])[:-3]}:   {doc['comment']}  -  {doc['amount']} \n")
+                        query = ("SELECT SUM(amount) as user_sum FROM purchase_docs "
+                                 "WHERE purchaser = %s AND accounting_id = %s")
+                        cursor.execute(query, (user['id'], acc_id))
+                        user_sum = cursor.fetchone()['user_sum']
+                        wallet_sum += user_sum
+                        report.write(' '*24 + f"ИТОГО ({user['user_nic']}):   {user_sum} \n")
+                    report.write(' ' * 24 + f"ИТОГО ({wallet['name']}):   {wallet_sum} \n")
                 report.write(f"\nПЛАТЕЖИ\n")
                 for wallet in wallets:
                     query = ("SELECT users.id, users.user_nic FROM wallet_users "
@@ -1053,14 +1061,15 @@ class DebtsServer(object):
                     for user in users:
                         query = ("SELECT time, users.user_nic AS recipient, comment, amount FROM payment_docs "
                                  "JOIN users ON users.id = recipient "
-                                 "WHERE accounting_id = %s AND payer = %s")
+                                 "WHERE accounting_id = %s AND payer = %s "
+                                 "ORDER BY recipient")
                         cursor.execute(query, (acc_id, user['id']))
                         docs = cursor.fetchall()
                         if len(docs) == 0:
                             continue
                         report.write(f"  Платежи {user['user_nic']} \n")
                         for doc in docs:
-                            report.write(f"    {doc['time']}:    {doc['recipient']}  "
+                            report.write(f"    {str(doc['time'])[:-3]}:  -> {doc['recipient']}  "
                                          f"({doc['comment']})  -  {doc['amount']} \n")
                 report.write(f"\nБАЛАНС\n")
                 for wallet in wallets:
