@@ -1,3 +1,5 @@
+import asyncio
+
 import pymysql
 import logging
 import os
@@ -26,6 +28,35 @@ def try_and_log(msg):
             try:
                 self.connection.ping(reconnect=True)
                 return func(self, *args, **kwargs), 'OK'
+            except Exception as ex:
+                dtl_msg = f"{msg}: {ex}"
+                self.logger.error(dtl_msg)
+                return None, dtl_msg
+
+        return wrap
+
+    return dcrtr
+
+
+def atry_and_log(msg):
+    """
+    Декоратор выполняет метод класса.
+    При возникновения исключения выводит в лог два сообщения
+    с текстом, который передается в декоратор как аргумент,
+    и с текстом исключения.
+
+    Возвращает кортеж из двух элементов:
+    Если было исключение - None и описание ошибки msg;
+    если не было - объект, возвращаемый методом, и 'OK'
+    Args:
+        msg (str): текст выводимый в лог при возникновении исключения
+    """
+
+    def dcrtr(func):
+        async def wrap(self, *args, **kwargs):
+            try:
+                self.connection.ping(reconnect=True)
+                return await func(self, *args, **kwargs), 'OK'
             except Exception as ex:
                 dtl_msg = f"{msg}: {ex}"
                 self.logger.error(dtl_msg)
@@ -817,8 +848,8 @@ class DebtsServer(object):
     # noinspection PyTypeChecker
 
     # noinspection PyTypeChecker
-    @try_and_log("Ошибка создания документа 'Покупка'")
-    def add_purchase_doc(self, acc_id, purchaser, amount, bnfcr=None, comment=''):
+    @atry_and_log("Ошибка создания документа 'Покупка'")
+    async def add_purchase_doc(self, acc_id, purchaser, amount, bnfcr=None, comment=''):
         """
         Добавляет документ покупки. \n
         Если множество бенефициаров не задано, считается на всех участников расчета
@@ -850,7 +881,7 @@ class DebtsServer(object):
             self.logger.info(f"Создан документ покупки {doc}. "
                              f"Плательщик: {purchaser}, сумма: {amount}, группа бенефициаров: {bnfcr_repr}")
             result(self.post_purchase_doc(acc_id, doc))
-            result(self.message_purchase(doc))
+            await self.message_purchase(doc)
             return doc
 
     # noinspection PyTypeChecker
@@ -1088,20 +1119,31 @@ class DebtsServer(object):
     #                   Методы для отправки сообщний                     #
     ######################################################################
 
-    @try_and_log("Ошибка отправки сообщения о покупке")
-    def message_purchase(self, doc_id):
-        query = ("SELECT purchaser, amount, comment, time, bnfcr_group "
-                 "FROM purchase_docs "
-                 "WHERE id = %s")
+    @atry_and_log("Ошибка отправки сообщения о покупке")
+    async def message_purchase(self, doc_id):
+        if self.msg_cbs is None:
+            return
+        query = ("SELECT purchaser, amount, comment, time, bnfcr_group, accounting_id, accountings.name as acc_name "
+                 "FROM purchase_docs JOIN accountings ON accountings.id = purchase_docs.accounting_id "
+                 "WHERE purchase_docs.id = %s")
         doc = result(self.execute(query, doc_id, fetchone=True))
 
-        msg = (f"{result(self.user_name(doc['purchaser']))} совершил покупку \n"
-               f"{doc['comment']} \n"
-               f"на сумму {doc['amount']} \n"
-               f"документ №{doc_id} от {str(doc['time'])[:-3]}")
+        msg = (f"Расчет '{doc['acc_name']}'\n"
+               f"{result(self.user_name(doc['purchaser']))} совершил покупку\n"
+               f"{doc['comment']}\n"
+               f"на сумму {doc['amount']}\n"
+               f"документ №{doc_id} от {str(doc['time'])[:-3]}\n")
 
-        query = "SELECT user_id FROM beneficiaries WHERE id = %s"
-        bnfcars = [result(self.user_name(user['user_id']))
-                   for user in result(self.execute(query, doc['bnfcr_group'], fetchall=True))]
-        if self.msg_cbs is not None:
-            self.msg_cbs(msg, bnfcars)
+        query = "SELECT user_id FROM beneficiaries WHERE bnfcr_group = %s AND user_id != %s"
+        res = result(self.execute(query, (doc['bnfcr_group'], doc['purchaser']), fetchall=True))
+        bnfcrs = [user['user_id']
+                  for user in res]
+        msg_tasks = []
+        for user in bnfcrs:
+            wallet = result(self.my_wallet(doc['accounting_id'], user))
+            query = "SELECT balance FROM wallets WHERE id = %s"
+            balance = result(self.execute(query, wallet, fetchone=True))
+            msg += f"Ваш баланс: {balance['balance']}"
+            msg_tasks.append(asyncio.create_task(self.msg_cbs(user, msg)))
+
+        await asyncio.gather(*msg_tasks)

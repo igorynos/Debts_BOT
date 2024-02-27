@@ -1,9 +1,8 @@
+import asyncio
 import debts_server
 
-
-new_msg = False
-msg_text = ''
-msg_users = []
+server = None
+accounting = None
 
 
 def result(res):
@@ -13,16 +12,20 @@ def result(res):
         return res[0]
 
 
-def purchase():
+async def purchase():
+    global server, accounting
     print('Документ "Покупка"')
     usr = int(input("покупатель: "))
     amnt = int(input("сумма: "))
     cmnt = input("комментарий: ")
-    if not result(server.add_purchase_doc(accounting, usr, amnt, bnfcr=None, comment=cmnt)):
+    doc = asyncio.create_task(server.add_purchase_doc(accounting, usr, amnt, bnfcr=None, comment=cmnt))
+    res = await doc
+    if not (result(res)):
         print('Документ не добавлен')
 
 
 def add_payment():
+    global server, accounting
     print('Документ "Платеж"')
     pyr = int(input("плательщик: "))
     rcpnt = int(input("получатель: "))
@@ -33,6 +36,7 @@ def add_payment():
 
 
 def reg_user():
+    global server, accounting
     print('Регистрация нового пользователя')
     nic = input("ник (до 16 символов): ")
     user_id = int(input("id: "))
@@ -40,6 +44,7 @@ def reg_user():
 
 
 def join_user():
+    global server, accounting
     usr = int(input("присоединить пользователя: "))
     if usr == 0:
         return
@@ -48,6 +53,7 @@ def join_user():
 
 
 def choose_accounting():
+    global server, accounting
     accountings = result(server.accounting_list('ACTIVE'))
     if accountings is None:
         return
@@ -80,6 +86,7 @@ def choose_accounting():
 
 
 def merge_wallets():
+    global server, accounting
     print("В системе зарегиспрированы кошельки:")
     wallets = result(server.get_wallet_balance(accounting))
     for wallet in wallets:
@@ -89,6 +96,7 @@ def merge_wallets():
 
 
 def leave_wallet():
+    global server, accounting
     cursor = server.connection.cursor()
     cursor.execute("SELECT id, user_nic FROM users")
     users = cursor.fetchall()
@@ -99,6 +107,7 @@ def leave_wallet():
 
 
 def show_balance():
+    global server, accounting
     balance = result(server.get_wallet_balance(accounting))
     if balance is None:
         return
@@ -107,6 +116,7 @@ def show_balance():
 
 
 def show_wallets():
+    global server, accounting
     wallets = result(server.wallet_balances(accounting))
     if wallets is None:
         return
@@ -115,17 +125,19 @@ def show_wallets():
 
 
 def my_wallet():
+    global server, accounting
     usr = int(input("пользователь: "))
     print(f"{result(server.my_wallet(accounting, usr))}")
 
 
 def others_wallets():
+    global server, accounting
     usr = int(input("пользователь: "))
     print(f"{result(server.others_wallets(accounting, usr))}")
 
 
 def report():
-    global accounting
+    global server, accounting
     if accounting is None:
         return
     if result(server.total_report(accounting)) is None:
@@ -133,7 +145,7 @@ def report():
 
 
 def close_accounting():
-    global accounting
+    global server, accounting
     if accounting is None:
         return
     if result(server.close_accounting(accounting)) is None:
@@ -141,17 +153,15 @@ def close_accounting():
     accounting = None
 
 
-def message_cbs(msg, users):
-    global  new_msg, msg_text, msg_users
-    new_msg = True
-    msg_text = msg
-    msg_users = users
+async def message_cbs(user, msg):
+    global server, accounting
+    print(msg)
+    print(user)
 
 
-if __name__ == '__main__':
+async def main():
+    global server, accounting
     server = debts_server.DebtsServer(message_cbs)
-    accounting = None
-    user = None
 
     while True:
         cmd = input('Ведите команду: ')
@@ -187,7 +197,7 @@ if __name__ == '__main__':
                 accounting = choose_accounting()
                 if accounting is None:
                     continue
-            purchase()
+            await purchase()
         elif cmd.lower()[:3] in ('пла', 'pay'):
             if accounting is None:
                 accounting = choose_accounting()
@@ -244,7 +254,6 @@ if __name__ == '__main__':
         else:
             print('Неизвестная команда')
 
-        if new_msg:
-            new_msg = False
-            print(msg_text)
-            print(*msg_users)
+if __name__ == '__main__':
+    asyncio.run(main())
+

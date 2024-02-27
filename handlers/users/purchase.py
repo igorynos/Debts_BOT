@@ -28,7 +28,7 @@ async def purchase3(message: types.Message, state: FSMContext):
     try:
         amount = float(data['sum'].replace(',', '.'))
         comment = message.text
-        result = server.add_purchase_doc(
+        result = await server.add_purchase_doc(
             acc_id=acc_id[0], purchaser=purch, amount=amount, comment=comment)
         if result[1] != 'OK':
             raise Exception
