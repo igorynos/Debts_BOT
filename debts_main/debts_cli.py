@@ -1,40 +1,32 @@
 import asyncio
 import debts_server
 
-accounting = None
-
 
 def check_accounting(func):
     def wrap(*args, **kwargs):
-        global accounting
+        self = args[0]
         try:
-            if accounting is None:
-                accounting = choose_accounting()
-                if accounting is None:
-                    return
-                return func(*args, **kwargs)
+            if self.accounting is None:
+                self.accounting = self.choose_accounting()
+            if self.accounting is None:
+                return
+            return func(*args, **kwargs)
         except Exception as ex:
             print(ex)
-            return
     return wrap
 
 
 def acheck_accounting(func):
-    async def aNone():
-        pass
-
     async def wrap(*args, **kwargs):
-        global accounting
+        self = args[0]
         try:
-            if accounting is None:
-                accounting = choose_accounting()
-                if accounting is None:
-                    return await aNone()
-                return await func(*args, **kwargs)
+            if self.accounting is None:
+                self.accounting = self.choose_accounting()
+            if self.accounting is None:
+                return
+            return await func(*args, **kwargs)
         except Exception as ex:
             print(ex)
-            return await aNone()
-
     return wrap
 
 
@@ -45,217 +37,192 @@ def result(res):
         return res[0]
 
 
-@acheck_accounting
-async def purchase():
-    global server, accounting
-    print('Документ "Покупка"')
-    usr = int(input("покупатель: "))
-    amnt = int(input("сумма: "))
-    cmnt = input("комментарий: ")
-    doc = asyncio.create_task(server.add_purchase_doc(accounting, usr, amnt, bnfcr=None, comment=cmnt))
-    res = await doc
-    if not (result(res)):
-        print('Документ не добавлен')
+class DebtsCLI(object):
+    def __init__(self):
+        self.accounting = None
+        self.server = debts_server.DebtsServer(self.message_cbs)
 
+    @acheck_accounting
+    async def purchase(self):
+        print('Документ "Покупка"')
+        usr = int(input("покупатель: "))
+        amnt = int(input("сумма: "))
+        cmnt = input("комментарий: ")
+        if not result(await self.server.add_purchase_doc(self.accounting, usr, amnt, bnfcr=None, comment=cmnt)):
+            print('Документ не добавлен')
 
-@acheck_accounting
-async def add_payment():
-    global server, accounting
-    print('Документ "Платеж"')
-    pyr = int(input("плательщик: "))
-    rcpnt = int(input("получатель: "))
-    amnt = int(input("сумма: "))
-    cmnt = input("комментарий: ")
-    if not result(await server.add_payment_doc(accounting, pyr, rcpnt, amnt, comment=cmnt)):
-        print('Документ не добавлен')
+    @acheck_accounting
+    async def add_payment(self):
+        print('Документ "Платеж"')
+        pyr = int(input("плательщик: "))
+        rcpnt = int(input("получатель: "))
+        amnt = int(input("сумма: "))
+        cmnt = input("комментарий: ")
+        if not result(await self.server.add_payment_doc(self.accounting, pyr, rcpnt, amnt, comment=cmnt)):
+            print('Документ не добавлен')
 
+    def reg_user(self):
+        print('Регистрация нового пользователя')
+        nic = input("ник (до 16 символов): ")
+        user_id = int(input("id: "))
+        result(self.server.reg_user(user_id, nic))
 
-def reg_user():
-    global server, accounting
-    print('Регистрация нового пользователя')
-    nic = input("ник (до 16 символов): ")
-    user_id = int(input("id: "))
-    result(server.reg_user(user_id, nic))
+    @check_accounting
+    def join_user(self):
+        usr = int(input("присоединить пользователя: "))
+        if usr == 0:
+            return
+        recalc = input("учесть совершенные покупки? д/н (y/n)").lower()[:1] in ('д', 'y')
+        result(self.server.join_user(self.accounting, usr, recalc))
 
+    def choose_accounting(self):
+        accountings = result(self.server.accounting_list('ACTIVE'))
+        if accountings is None:
+            return
+        print('Активные расчеты:')
+        for acc in accountings:
+            print(f"{acc['id']}\t'{acc['name']}'  начало: {acc['start_time']}")
+        accounting_id = int(input('Введите номер расчета. 0 - чтобы создать новый  '))
 
-@check_accounting
-def join_user():
-    global server, accounting
-    usr = int(input("присоединить пользователя: "))
-    if usr == 0:
+        if accounting_id == 0:
+            name = input("Введите имя для нового расчета: ")
+            cursor = self.server.connection.cursor()
+            print("В системе зарегиспрированы пользователи:")
+            cursor.execute("SELECT id, user_nic FROM users")
+            users = cursor.fetchall()
+            for user in users:
+                print(f"{user['id']}:  {user['user_nic']}")
+            user_list = list(map(int, input("Перечислите через запятую ID участников расчета: ").split(',')))
+            accounting_id = result(self.server.new_accounting(name, user_list))
+            if accounting_id is None:
+                return
+
+        accountings = result(self.server.accounting_list('ACTIVE'))
+        if accountings is None:
+            return
+        for acc in accountings:
+            if acc['id'] == accounting_id:
+                return accounting_id
+        print('Неверный номер расчета')
         return
-    recalc = input("учесть совершенные покупки? д/н (y/n)").lower()[:1] in ('д', 'y')
-    result(server.join_user(accounting, usr, recalc))
 
+    @check_accounting
+    def merge_wallets(self):
+        print("В системе зарегиспрированы кошельки:")
+        wallets = result(self.server.get_wallet_balance(self.accounting))
+        for wallet in wallets:
+            print(f"{wallet['id']}: {wallet['name']}")
+        wallets_list = list(map(int, input("Перечислите через запятую номера объединяемых кошельков: ").split(',')))
+        result(self.server.merge_wallets(self.accounting, wallets_list))
 
-def choose_accounting():
-    global server, accounting
-    accountings = result(server.accounting_list('ACTIVE'))
-    if accountings is None:
-        return
-    print('Активные расчеты:')
-    for acc in accountings:
-        print(f"{acc['id']}\t'{acc['name']}'  начало: {acc['start_time']}")
-    accounting_id = int(input('Введите номер расчета. 0 - чтобы создать новый  '))
-
-    if accounting_id == 0:
-        name = input("Введите имя для нового расчета: ")
-        cursor = server.connection.cursor()
-        print("В системе зарегиспрированы пользователи:")
+    @check_accounting
+    def leave_wallet(self):
+        cursor = self.server.connection.cursor()
         cursor.execute("SELECT id, user_nic FROM users")
         users = cursor.fetchall()
         for user in users:
             print(f"{user['id']}:  {user['user_nic']}")
-        user_list = list(map(int, input("Перечислите через запятую ID участников расчета: ").split(',')))
-        accounting_id = result(server.new_accounting(name, user_list))
-        if accounting_id is None:
+        user = int(input("Выберите ID пользователя: "))
+        self.server.leave_wallet(self.accounting, user)
+
+    @check_accounting
+    def show_balance(self):
+        balance = result(self.server.get_wallet_balance(self.accounting))
+        if balance is None:
+            return
+        for blnc in balance:
+            print(f"{blnc['id']} {blnc['name']}  -  {blnc['balance']}")
+
+    @check_accounting
+    def show_wallets(self):
+        wallets = result(self.server.wallet_balances(self.accounting))
+        if wallets is None:
+            return
+        for name in wallets.keys():
+            print(f"{name}:    {wallets[name]}")
+
+    @check_accounting
+    def my_wallet(self):
+        usr = int(input("пользователь: "))
+        print(f"{result(self.server.my_wallet(self.accounting, usr))}")
+
+    @check_accounting
+    def others_wallets(self):
+        usr = int(input("пользователь: "))
+        print(f"{result(self.server.others_wallets(self.accounting, usr))}")
+
+    @check_accounting
+    def report(self):
+        if self.accounting is None:
+            return
+        if result(self.server.total_report(self.accounting)) is None:
             return
 
-    accountings = result(server.accounting_list('ACTIVE'))
-    if accountings is None:
-        return
-    for acc in accountings:
-        if acc['id'] == accounting_id:
-            return accounting_id
-    print('Неверный номер расчета')
-    return
+    def close_accounting(self):
+        if self.accounting is None:
+            return
+        if result(self.server.close_accounting(self.accounting)) is None:
+            return
+        self.accounting = None
 
+    @staticmethod
+    async def message_cbs(user, msg):
+        print(msg)
+        print(user)
 
-@check_accounting
-def merge_wallets():
-    global server, accounting
-    print("В системе зарегиспрированы кошельки:")
-    wallets = result(server.get_wallet_balance(accounting))
-    for wallet in wallets:
-        print(f"{wallet['id']}: {wallet['name']}")
-    wallets_list = list(map(int, input("Перечислите через запятую номера объединяемых кошельков: ").split(',')))
-    result(server.merge_wallets(accounting, wallets_list))
+    async def run(self):
+        while True:
+            cmd = input('Ведите команду: ')
+            if cmd.lower()[:3] in ('hel', 'пом'):
+                print('зарегистрировать (register)    - зарегистрировать нового пользователя \n'
+                      'присоединить (join)            - присоединить пользователя к расчету \n' 
+                      'расчет (accounting)            - выбрать или создать расчет \n'
+                      'покупка (purchase)             - создать документ "Покупка" \n'
+                      'платеж (payment)               - создать документ "Платеж" \n'
+                      'баланс (balance)               - посмотреть текущий баланс \n'
+                      'кошельки (wallets)             - посмотреть баланс всех кошельков \n'
+                      'объединить (merge)             - объединить кошельки \n'
+                      'мой (my)                       - посмотреть идентификатор моего кошелька \n'
+                      'чужие (others)                 - посмотреть идентификаторы чужих кошельков \n'
+                      'выйти (leave)                  - выйти из кошелька \n'
+                      'отчет (report)                 - отчет по расчету \n'
+                      'закрыть (close)                - закрыть расчет \n'
+                      'выход (exit)                   - завершить программу')
+            elif cmd.lower()[:3] in ('зар', 'рег', 'reg'):
+                self.reg_user()
+            elif cmd.lower()[:3] in ('при', 'joi'):
+                self.join_user()
+            elif cmd.lower()[:3] in ('рас', 'acc'):
+                self.accounting = self.choose_accounting()
+            elif cmd.lower()[:3] in ('объ', 'mer'):
+                self.merge_wallets()
+            elif cmd.lower()[:3] in ('пок', 'pur'):
+                await self.purchase()
+            elif cmd.lower()[:3] in ('пла', 'pay'):
+                await self.add_payment()
+            elif cmd.lower()[:3] in ('бал', 'bal'):
+                self.show_balance()
+            elif cmd.lower()[:3] in ('кош', 'wal'):
+                self.show_wallets()
+            elif cmd.lower()[:3] == 'мой' or cmd.lower()[:2] == 'my':
+                self.my_wallet()
+            elif cmd.lower()[:3] in ('чуж', 'oth'):
+                self.others_wallets()
+            elif cmd.lower()[:3] in ('вый', 'lea'):
+                self.leave_wallet()
+            elif cmd.lower()[:3] in ('отч', 'rep'):
+                self.report()
+            elif cmd.lower()[:3] in ('зак', 'clo'):
+                self.close_accounting()
+            elif cmd.lower()[:3] in ('вых', 'exi'):
+                break
+            elif cmd.lower()[:3] in ('set',):
+                self.server.set_current_accounting(None, 1)
+                print(result(self.server.get_current_accounting(1)))
+            else:
+                print('Неизвестная команда')
 
-
-@check_accounting
-def leave_wallet():
-    global server, accounting
-    cursor = server.connection.cursor()
-    cursor.execute("SELECT id, user_nic FROM users")
-    users = cursor.fetchall()
-    for user in users:
-        print(f"{user['id']}:  {user['user_nic']}")
-    user = int(input("Выберите ID пользователя: "))
-    server.leave_wallet(accounting, user)
-
-
-@check_accounting
-def show_balance():
-    global server, accounting
-    balance = result(server.get_wallet_balance(accounting))
-    if balance is None:
-        return
-    for blnc in balance:
-        print(f"{blnc['id']} {blnc['name']}  -  {blnc['balance']}")
-
-
-@check_accounting
-def show_wallets():
-    global server, accounting
-    wallets = result(server.wallet_balances(accounting))
-    if wallets is None:
-        return
-    for name in wallets.keys():
-        print(f"{name}:    {wallets[name]}")
-
-
-@check_accounting
-def my_wallet():
-    global server, accounting
-    usr = int(input("пользователь: "))
-    print(f"{result(server.my_wallet(accounting, usr))}")
-
-
-@check_accounting
-def others_wallets():
-    global server, accounting
-    usr = int(input("пользователь: "))
-    print(f"{result(server.others_wallets(accounting, usr))}")
-
-
-@check_accounting
-def report():
-    global server, accounting
-    if accounting is None:
-        return
-    if result(server.total_report(accounting)) is None:
-        return
-
-
-def close_accounting():
-    global server, accounting
-    if accounting is None:
-        return
-    if result(server.close_accounting(accounting)) is None:
-        return
-    accounting = None
-
-
-async def message_cbs(user, msg):
-    print(msg)
-    print(user)
-
-
-async def main():
-    global server, accounting
-    server = debts_server.DebtsServer(message_cbs)
-
-    while True:
-        cmd = input('Ведите команду: ')
-        if cmd.lower()[:3] in ('hel', 'пом'):
-            print('зарегистрировать (register)    - зарегистрировать нового пользователя \n'
-                  'присоединить (join)            - присоединить пользователя к расчету \n' 
-                  'расчет (accounting)            - выбрать или создать расчет \n'
-                  'покупка (purchase)             - создать документ "Покупка" \n'
-                  'платеж (payment)               - создать документ "Платеж" \n'
-                  'баланс (balance)               - посмотреть текущий баланс \n'
-                  'кошельки (wallets)             - посмотреть баланс всех кошельков \n'
-                  'объединить (merge)             - объединить кошельки \n'
-                  'мой (my)                       - посмотреть идентификатор моего кошелька \n'
-                  'чужие (others)                 - посмотреть идентификаторы чужих кошельков \n'
-                  'выйти (leave)                  - выйти из кошелька \n'
-                  'отчет (report)                 - отчет по расчету \n'
-                  'закрыть (close)                - закрыть расчет \n'
-                  'выход (exit)                   - завершить программу')
-        elif cmd.lower()[:3] in ('зар', 'рег', 'reg'):
-            reg_user()
-        elif cmd.lower()[:3] in ('при', 'joi'):
-            join_user()
-        elif cmd.lower()[:3] in ('рас', 'acc'):
-            accounting = choose_accounting()
-        elif cmd.lower()[:3] in ('объ', 'mer'):
-            merge_wallets()
-        elif cmd.lower()[:3] in ('пок', 'pur'):
-            await purchase()
-        elif cmd.lower()[:3] in ('пла', 'pay'):
-            await add_payment()
-        elif cmd.lower()[:3] in ('бал', 'bal'):
-            show_balance()
-        elif cmd.lower()[:3] in ('кош', 'wal'):
-            show_wallets()
-        elif cmd.lower()[:3] == 'мой' or cmd.lower()[:2] == 'my':
-            my_wallet()
-        elif cmd.lower()[:3] in ('чуж', 'oth'):
-            others_wallets()
-        elif cmd.lower()[:3] in ('вый', 'lea'):
-            leave_wallet()
-        elif cmd.lower()[:3] in ('отч', 'rep'):
-            report()
-        elif cmd.lower()[:3] in ('зак', 'clo'):
-            close_accounting()
-        elif cmd.lower()[:3] in ('вых', 'exi'):
-            break
-        elif cmd.lower()[:3] in ('set',):
-            server.set_current_accounting(None, 1)
-            print(result(server.get_current_accounting(1)))
-        else:
-            print('Неизвестная команда')
 
 if __name__ == '__main__':
-    asyncio.run(main())
-
+    cli = DebtsCLI()
+    asyncio.run(cli.run())
