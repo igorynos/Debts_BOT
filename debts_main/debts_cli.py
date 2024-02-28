@@ -1,8 +1,41 @@
 import asyncio
 import debts_server
 
-server = None
 accounting = None
+
+
+def check_accounting(func):
+    def wrap(*args, **kwargs):
+        global accounting
+        try:
+            if accounting is None:
+                accounting = choose_accounting()
+                if accounting is None:
+                    return
+                return func(*args, **kwargs)
+        except Exception as ex:
+            print(ex)
+            return
+    return wrap
+
+
+def acheck_accounting(func):
+    async def aNone():
+        pass
+
+    async def wrap(*args, **kwargs):
+        global accounting
+        try:
+            if accounting is None:
+                accounting = choose_accounting()
+                if accounting is None:
+                    return await aNone()
+                return await func(*args, **kwargs)
+        except Exception as ex:
+            print(ex)
+            return await aNone()
+
+    return wrap
 
 
 def result(res):
@@ -12,6 +45,7 @@ def result(res):
         return res[0]
 
 
+@acheck_accounting
 async def purchase():
     global server, accounting
     print('Документ "Покупка"')
@@ -24,6 +58,7 @@ async def purchase():
         print('Документ не добавлен')
 
 
+@acheck_accounting
 async def add_payment():
     global server, accounting
     print('Документ "Платеж"')
@@ -43,6 +78,7 @@ def reg_user():
     result(server.reg_user(user_id, nic))
 
 
+@check_accounting
 def join_user():
     global server, accounting
     usr = int(input("присоединить пользователя: "))
@@ -85,6 +121,7 @@ def choose_accounting():
     return
 
 
+@check_accounting
 def merge_wallets():
     global server, accounting
     print("В системе зарегиспрированы кошельки:")
@@ -95,6 +132,7 @@ def merge_wallets():
     result(server.merge_wallets(accounting, wallets_list))
 
 
+@check_accounting
 def leave_wallet():
     global server, accounting
     cursor = server.connection.cursor()
@@ -106,6 +144,7 @@ def leave_wallet():
     server.leave_wallet(accounting, user)
 
 
+@check_accounting
 def show_balance():
     global server, accounting
     balance = result(server.get_wallet_balance(accounting))
@@ -115,6 +154,7 @@ def show_balance():
         print(f"{blnc['id']} {blnc['name']}  -  {blnc['balance']}")
 
 
+@check_accounting
 def show_wallets():
     global server, accounting
     wallets = result(server.wallet_balances(accounting))
@@ -124,18 +164,21 @@ def show_wallets():
         print(f"{name}:    {wallets[name]}")
 
 
+@check_accounting
 def my_wallet():
     global server, accounting
     usr = int(input("пользователь: "))
     print(f"{result(server.my_wallet(accounting, usr))}")
 
 
+@check_accounting
 def others_wallets():
     global server, accounting
     usr = int(input("пользователь: "))
     print(f"{result(server.others_wallets(accounting, usr))}")
 
 
+@check_accounting
 def report():
     global server, accounting
     if accounting is None:
@@ -154,7 +197,6 @@ def close_accounting():
 
 
 async def message_cbs(user, msg):
-    global server, accounting
     print(msg)
     print(user)
 
@@ -183,68 +225,28 @@ async def main():
         elif cmd.lower()[:3] in ('зар', 'рег', 'reg'):
             reg_user()
         elif cmd.lower()[:3] in ('при', 'joi'):
-            if accounting is None:
-                accounting = choose_accounting()
-                if accounting is None:
-                    continue
             join_user()
         elif cmd.lower()[:3] in ('рас', 'acc'):
             accounting = choose_accounting()
         elif cmd.lower()[:3] in ('объ', 'mer'):
             merge_wallets()
         elif cmd.lower()[:3] in ('пок', 'pur'):
-            if accounting is None:
-                accounting = choose_accounting()
-                if accounting is None:
-                    continue
             await purchase()
         elif cmd.lower()[:3] in ('пла', 'pay'):
-            if accounting is None:
-                accounting = choose_accounting()
-                if accounting is None:
-                    continue
             await add_payment()
         elif cmd.lower()[:3] in ('бал', 'bal'):
-            if accounting is None:
-                accounting = choose_accounting()
-                if accounting is None:
-                    continue
             show_balance()
         elif cmd.lower()[:3] in ('кош', 'wal'):
-            if accounting is None:
-                accounting = choose_accounting()
-                if accounting is None:
-                    continue
             show_wallets()
         elif cmd.lower()[:3] == 'мой' or cmd.lower()[:2] == 'my':
-            if accounting is None:
-                accounting = choose_accounting()
-                if accounting is None:
-                    continue
             my_wallet()
         elif cmd.lower()[:3] in ('чуж', 'oth'):
-            if accounting is None:
-                accounting = choose_accounting()
-                if accounting is None:
-                    continue
             others_wallets()
         elif cmd.lower()[:3] in ('вый', 'lea'):
-            if accounting is None:
-                accounting = choose_accounting()
-                if accounting is None:
-                    continue
             leave_wallet()
         elif cmd.lower()[:3] in ('отч', 'rep'):
-            if accounting is None:
-                accounting = choose_accounting()
-                if accounting is None:
-                    continue
             report()
         elif cmd.lower()[:3] in ('зак', 'clo'):
-            if accounting is None:
-                accounting = choose_accounting()
-                if accounting is None:
-                    continue
             close_accounting()
         elif cmd.lower()[:3] in ('вых', 'exi'):
             break
