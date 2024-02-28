@@ -24,10 +24,11 @@ def try_and_log(msg):
     """
 
     def dcrtr(func):
-        def wrap(self, *args, **kwargs):
+        def wrap(*args, **kwargs):
+            self = args[0]
             try:
                 self.connection.ping(reconnect=True)
-                return func(self, *args, **kwargs), 'OK'
+                return func(*args, **kwargs), 'OK'
             except Exception as ex:
                 dtl_msg = f"{msg}: {ex}"
                 self.logger.error(dtl_msg)
@@ -53,10 +54,11 @@ def atry_and_log(msg):
     """
 
     def dcrtr(func):
-        async def wrap(self, *args, **kwargs):
+        async def wrap(*args, **kwargs):
+            self = args[0]
             try:
                 self.connection.ping(reconnect=True)
-                return await func(self, *args, **kwargs), 'OK'
+                return await func(*args, **kwargs), 'OK'
             except Exception as ex:
                 dtl_msg = f"{msg}: {ex}"
                 self.logger.error(dtl_msg)
@@ -601,7 +603,7 @@ class DebtsServer(object):
                           f"users=({', '.join(map(str, users))}), "
                           f"walets=({', '.join(map(str, wallets))})"
                           )
-        with self.connection.cursor() as cursor:
+        with self.connection.cursor():
             query = "INSERT INTO wallet_users (user_id, accounting_id, wallet) VALUES " + \
                     ", ".join(["(%s, %s, %s)"] * len(users))
             args = [[users[i], acc_id, wallets[i]][j]
@@ -643,7 +645,7 @@ class DebtsServer(object):
             Returns:
                 int: идентификатор кошелька wallet_users.wallet
         """
-        with self.connection.cursor() as cursor:
+        with self.connection.cursor():
             query = "SELECT wallet FROM wallet_users WHERE accounting_id = %s AND user_id = %s"
             return result(self.execute(query, (acc_id, user), fetchone=True))['wallet']
 
@@ -658,7 +660,7 @@ class DebtsServer(object):
                 lst(int): список идентификаторов кошельков wallet_users.wallet
         """
         my_wallet = self.my_wallet(acc_id, user)[0]
-        with self.connection.cursor() as cursor:
+        with self.connection.cursor():
             query = "SELECT DISTINCT wallet FROM wallet_users WHERE accounting_id = %s"
             all_wallets = [wlt['wallet'] for wlt in result(self.execute(query, acc_id, fetchall=True))]
             all_wallets.remove(my_wallet)
@@ -673,7 +675,7 @@ class DebtsServer(object):
             Returns:
                 dict: словарь: ключи - названия кошельков; значения - балансы
         """
-        with self.connection.cursor() as cursor:
+        with self.connection.cursor():
             query = ("SELECT wallets.name as name, wallets.balance as balance "
                      "FROM wallet_users JOIN wallets ON wallet_users.wallet = wallets.id "
                      "WHERE accounting_id = %s")
@@ -697,7 +699,7 @@ class DebtsServer(object):
                           f"wallets_list=({', '.join(map(str, wallets_list))}), "
                           f"name='{name}'"
                           )
-        with self.connection.cursor() as cursor:
+        with self.connection.cursor():
             if len(wallets_list) < 2:
                 return
             wallets = result(self.get_wallet_balance(acc_id, wallets_list))
@@ -933,8 +935,7 @@ class DebtsServer(object):
             cursor.execute(query, doc_id)
             document = cursor.fetchone()
             query = "SELECT user_id FROM beneficiaries WHERE bnfcr_group = %s"
-            cursor.execute(query, document['bnfcr_group'])
-            users = cursor.fetchall()
+            users = self.execute(query, document['bnfcr_group'], fetchall=True)
             for user in users:
                 query = "SELECT balance FROM user_balance WHERE user_id = %s AND accounting_id = %s"
                 cursor.execute(query, [user['user_id'], acc_id])
@@ -1171,4 +1172,3 @@ class DebtsServer(object):
 
         print(type(self.msg_cbs))
         await self.msg_cbs(doc['recipient'], msg)
-
