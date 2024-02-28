@@ -39,7 +39,7 @@ async def payment_doc4(message: types.Message, state: FSMContext):
         rec = int(data['rec'])
         amount = float(data['sum'].replace(',', '.'))
         comment = message.text
-        result = server.add_payment_doc(
+        result = await server.add_payment_doc(
             acc_id=acc_id, recipient=rec, payer=payer, amount=amount, comment=comment)
         if result[1] != 'OK':
             raise Exception

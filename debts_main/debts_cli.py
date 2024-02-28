@@ -24,14 +24,14 @@ async def purchase():
         print('Документ не добавлен')
 
 
-def add_payment():
+async def add_payment():
     global server, accounting
     print('Документ "Платеж"')
     pyr = int(input("плательщик: "))
     rcpnt = int(input("получатель: "))
     amnt = int(input("сумма: "))
     cmnt = input("комментарий: ")
-    if not result(server.add_payment_doc(accounting, pyr, rcpnt, amnt, comment=cmnt)):
+    if not result(await server.add_payment_doc(accounting, pyr, rcpnt, amnt, comment=cmnt)):
         print('Документ не добавлен')
 
 
@@ -203,7 +203,7 @@ async def main():
                 accounting = choose_accounting()
                 if accounting is None:
                     continue
-            add_payment()
+            await add_payment()
         elif cmd.lower()[:3] in ('бал', 'bal'):
             if accounting is None:
                 accounting = choose_accounting()

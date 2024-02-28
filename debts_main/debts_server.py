@@ -881,12 +881,12 @@ class DebtsServer(object):
             self.logger.info(f"Создан документ покупки {doc}. "
                              f"Плательщик: {purchaser}, сумма: {amount}, группа бенефициаров: {bnfcr_repr}")
             result(self.post_purchase_doc(acc_id, doc))
-            await self.message_purchase(doc)
+            await self.notice_purchase(doc)
             return doc
 
     # noinspection PyTypeChecker
-    @try_and_log("Ошибка создания документа 'Платеж'")
-    def add_payment_doc(self, acc_id, payer, recipient, amount, comment=''):
+    @atry_and_log("Ошибка создания документа 'Платеж'")
+    async def add_payment_doc(self, acc_id, payer, recipient, amount, comment=''):
         """
         Добавляет документ платежа.
         Args:
@@ -912,6 +912,7 @@ class DebtsServer(object):
             self.logger.info(f"Создан документ платежа {doc}. "
                              f"Плательщик: {payer}, получатель: {recipient} сумма: {amount}")
             result(self.post_payment_doc(acc_id, doc))
+            await self.notice_payment(doc)
             return doc
 
     # ПРОВЕДЕНИЕ/ОТМЕНА ДОКУМЕНТОВ
@@ -1120,7 +1121,7 @@ class DebtsServer(object):
     ######################################################################
 
     @atry_and_log("Ошибка отправки сообщения о покупке")
-    async def message_purchase(self, doc_id):
+    async def notice_purchase(self, doc_id):
         if self.msg_cbs is None:
             return
         query = ("SELECT purchaser, amount, comment, time, bnfcr_group, accounting_id, accountings.name as acc_name "
@@ -1130,7 +1131,7 @@ class DebtsServer(object):
 
         msg = (f"Расчет '{doc['acc_name']}'\n"
                f"{result(self.user_name(doc['purchaser']))} совершил покупку\n"
-               f"{doc['comment']}\n"
+               f"{doc['comment']},\n"
                f"на сумму {doc['amount']}\n"
                f"документ №{doc_id} от {str(doc['time'])[:-3]}\n")
 
@@ -1147,3 +1148,27 @@ class DebtsServer(object):
             msg_tasks.append(asyncio.create_task(self.msg_cbs(user, msg)))
 
         await asyncio.gather(*msg_tasks)
+
+    @atry_and_log("Ошибка отправки сообщения о платеже")
+    async def notice_payment(self, doc_id):
+        if self.msg_cbs is None:
+            return
+        query = ("SELECT payer, recipient, amount, comment, time, accounting_id, accountings.name as acc_name "
+                 "FROM payment_docs JOIN accountings ON accountings.id = payment_docs.accounting_id "
+                 "WHERE payment_docs.id = %s")
+        doc = result(self.execute(query, doc_id, fetchone=True))
+
+        wallet = result(self.my_wallet(doc['accounting_id'], doc['recipient']))
+        query = "SELECT balance FROM wallets WHERE id = %s"
+        balance = result(self.execute(query, wallet, fetchone=True))
+
+        msg = (f"Расчет '{doc['acc_name']}',\n"
+               f"платеж от {result(self.user_name(doc['payer']))},\n"
+               f"сумма: {doc['amount']},\n"
+               f"комментарий: {doc['comment']}\n"
+               f"документ №{doc_id} от {str(doc['time'])[:-3]}.\n"
+               f"Ваш баланс: {balance['balance']}")
+
+        print(type(self.msg_cbs))
+        await self.msg_cbs(doc['recipient'], msg)
+
