@@ -666,7 +666,7 @@ class DebtsServer(object):
             all_wallets.remove(my_wallet)
             return all_wallets
 
-    @try_and_log('Ошибка получения баласов кошельков')
+    @try_and_log('Ошибка получения баласа кошельков')
     def wallet_balances(self, acc_id):
         """
             Возвращает словарь состоящий из имен и балансов всех кошельков расчета
@@ -680,8 +680,25 @@ class DebtsServer(object):
                      "FROM wallet_users JOIN wallets ON wallet_users.wallet = wallets.id "
                      "WHERE accounting_id = %s")
             wallets = result(self.execute(query, acc_id, fetchall=True))
-            print(wallets)
             return {wallet['name']: wallet['balance'] for wallet in wallets}
+
+    @try_and_log('Ошибка получения баласа кошельков пользователей')
+    def user_wallet_balance(self, acc_id):
+        """
+        Возвращает баланс кошельков пользователей расчета в виде списка словарей с ключами
+            'user_id' - идентификатор пользователя \n
+            'balance' - баланс кошелька пользователя
+            Args:
+                acc_id (int): идентификатор расчета accountings.id
+            Returns:
+                list(dict)
+        """
+        with self.connection.cursor():
+            query = ("SELECT wallet_users.user_id, wallets.balance, users.user_nic FROM wallet_users "
+                     "JOIN wallets ON wallet_users.wallet = wallets.id "
+                     "JOIN users ON users.id = wallet_users.user_id "
+                     "WHERE accounting_id = %s")
+            return result(self.execute(query, acc_id, fetchall=True))
 
     # noinspection PyTypeChecker
     @try_and_log('Ошибка объединения кошельков')
@@ -917,6 +934,49 @@ class DebtsServer(object):
             await self.notice_payment(doc)
             return doc
 
+    # noinspection PyTypeChecker
+    @atry_and_log("Ошибка удаления документа 'Покупка' или 'Платеж'")
+    async def del_doc(self, doc_id, doc_type):
+        """
+        Удаляет документ покупки или платежа. \n
+        Args:
+            doc_id (int): идентификатор документа покупки purchase_docs.id
+            doc_type (str): тип документа: 'purchase' или 'payment'
+        """
+
+        doc_type = doc_type.lower()
+        with self.connection.cursor():
+            query = (f"SELECT {'purchaser' if doc_type == 'purchase' else 'payer'} as user, "
+                     f"amount, comment, time, accounting_id as acc_id, accountings.name as acc_name "
+                     f"FROM {doc_type}_docs JOIN accountings ON accountings.id = {doc_type}_docs.accounting_id "
+                     f"WHERE {doc_type}_docs.id = %s")
+            doc = result(self.execute(query, doc_id, fetchone=True))
+            user_name = result(self.user_name(doc['user']))
+            msg_data = {'acc_id': doc['acc_id'],
+                        'acc_name': doc['acc_name'],
+                        'user_name': user_name,
+                        'doc_type': 'покупку' if doc_type == 'purchase' else 'платеж',
+                        'doc_id': doc_id,
+                        'doc_time': str(doc['time'])[:-3],
+                        'amount': doc['amount'],
+                        'comment': doc['comment']}
+
+            query = f"SELECT accounting_id FROM {doc_type}_docs WHERE id = %s"
+            acc_id = result(self.execute(query, doc_id, fetchone=True))['accounting_id']
+            balance1 = result(self.user_wallet_balance(acc_id))
+            if doc_type == 'purchase':
+                result(self.post_purchase_doc(acc_id, doc_id, reject=True))
+            elif doc_type == 'payment':
+                result(self.post_payment_doc(acc_id, doc_id, reject=True))
+            query = f"DELETE FROM  {doc_type}_docs WHERE id = %s"
+            result(self.execute(query, doc_id, commit=True))
+            balance2 = result(self.user_wallet_balance(acc_id))
+        users = list(balance2)
+        for i in range(len(balance1)):
+            if abs(balance1[i]['balance'] - balance2[i]['balance']) < 1 or balance1[i]['user_id'] == doc['user']:
+                users.remove(balance2[i])
+        result(await self.notice_del_doc(users, msg_data))
+
     # ПРОВЕДЕНИЕ/ОТМЕНА ДОКУМЕНТОВ
 
     # noinspection PyTypeChecker
@@ -935,7 +995,7 @@ class DebtsServer(object):
             cursor.execute(query, doc_id)
             document = cursor.fetchone()
             query = "SELECT user_id FROM beneficiaries WHERE bnfcr_group = %s"
-            users = self.execute(query, document['bnfcr_group'], fetchall=True)
+            users = result(self.execute(query, document['bnfcr_group'], fetchall=True))
             for user in users:
                 query = "SELECT balance FROM user_balance WHERE user_id = %s AND accounting_id = %s"
                 cursor.execute(query, [user['user_id'], acc_id])
@@ -943,10 +1003,8 @@ class DebtsServer(object):
                 if user['user_id'] == document['purchaser']:
                     user['balance'] += sign * document['amount']
                 query = "UPDATE user_balance SET balance = %s WHERE user_id = %s AND accounting_id = %s"
-                cursor.execute(
-                    query, [user['balance'], user['user_id'], acc_id])
-            cursor.execute("UPDATE purchase_docs SET posted = %s WHERE id = %s", [
-                           not reject, doc_id])
+                cursor.execute(query, [user['balance'], user['user_id'], acc_id])
+            cursor.execute("UPDATE purchase_docs SET posted = %s WHERE id = %s", [not reject, doc_id])
             self.connection.commit()
             self.update_wallet_balance(acc_id)
             if reject:
@@ -987,8 +1045,7 @@ class DebtsServer(object):
             self.connection.commit()
             self.update_wallet_balance(acc_id)
             if reject:
-                self.logger.info(
-                    f"Отменено проведение документа пплатежа {doc_id}")
+                self.logger.info(f"Отменено проведение документа пплатежа {doc_id}")
             else:
                 self.logger.info(f"Проведен документ пплатежа {doc_id}")
 
@@ -1069,8 +1126,7 @@ class DebtsServer(object):
                     cursor.execute(query, wallet['wallet'])
                     users = cursor.fetchall()
                     for user in users:
-                        query = ("SELECT purchase_docs.id, time, comment, amount "
-                                 "FROM purchase_docs "
+                        query = ("SELECT id, time, comment, amount FROM purchase_docs "
                                  "WHERE accounting_id = %s AND purchaser = %s")
                         cursor.execute(query, (acc_id, user['id']))
                         docs = cursor.fetchall()
@@ -1113,15 +1169,14 @@ class DebtsServer(object):
                 for wallet in wallets:
                     report.write(
                         f"  {wallet['name']}  -  {wallet['balance']} \n")
-                self.logger.info(
-                    f"Отчет по расчету {acc_id} сохранен в файле {file_name}")
+                self.logger.info(f"Отчет по расчету {acc_id} сохранен в файле {file_name}")
             return file_name
 
     ######################################################################
     #                   Методы для отправки сообщний                     #
     ######################################################################
 
-    @atry_and_log("Ошибка отправки сообщения о покупке")
+    @atry_and_log("Ошибка отправки уведомления о покупке")
     async def notice_purchase(self, doc_id):
         if self.msg_cbs is None:
             return
@@ -1145,12 +1200,12 @@ class DebtsServer(object):
             wallet = result(self.my_wallet(doc['accounting_id'], user))
             query = "SELECT balance FROM wallets WHERE id = %s"
             balance = result(self.execute(query, wallet, fetchone=True))
-            msg += f"Ваш баланс: {balance['balance']}"
-            msg_tasks.append(asyncio.create_task(self.msg_cbs(user, msg)))
+            msg_tasks.append(asyncio.create_task(self.msg_cbs(user, msg + f"Ваш баланс: {balance['balance']}")))
+            self.logger.info(f"Пользователю {user} отправлено уведомление о покупке {doc_id}")
 
         await asyncio.gather(*msg_tasks)
 
-    @atry_and_log("Ошибка отправки сообщения о платеже")
+    @atry_and_log("Ошибка отправки уведомления о платеже")
     async def notice_payment(self, doc_id):
         if self.msg_cbs is None:
             return
@@ -1170,5 +1225,21 @@ class DebtsServer(object):
                f"документ №{doc_id} от {str(doc['time'])[:-3]}.\n"
                f"Ваш баланс: {balance['balance']}")
 
-        print(type(self.msg_cbs))
+        self.logger.info(f"Пользователю {doc['recipient']} отправлено уведомление о платеже {doc_id}")
         await self.msg_cbs(doc['recipient'], msg)
+
+    @atry_and_log("Ошибка отправки сообщения о платеже")
+    async def notice_del_doc(self, users, msg_data):
+        msg = (f"Расчет №{msg_data['acc_id']} '{msg_data['acc_name']}',\n"
+               f"{msg_data['user_name']} отменил(а) {msg_data['doc_type']}\n"
+               f"документ №{msg_data['doc_id']} от  {msg_data['doc_time']}\n"
+               f"сумма: {msg_data['amount']},\n"
+               f"комментарий: {msg_data['comment']}\n")
+
+        msg_tasks = []
+        for user in users:
+            msg_tasks.append(asyncio.create_task(self.msg_cbs(user['user_id'],
+                                                              msg + f"Ваш баланс: {user['balance']}")))
+            self.logger.info(f"Пользователю {user['user_id']} отправлено уведомление об отмене {msg_data['doc_id']}")
+
+        await asyncio.gather(*msg_tasks)

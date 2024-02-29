@@ -61,6 +61,34 @@ class DebtsCLI(object):
         if not result(await self.server.add_payment_doc(self.accounting, pyr, rcpnt, amnt, comment=cmnt)):
             print('Документ не добавлен')
 
+    @acheck_accounting
+    async def cancel_doc(self):
+        print('Отменить документ\n  1: покупки\n  2: платежа')
+        doc_type = int(input("выберите тип документа: "))
+        if doc_type == 1:
+            query = ("SELECT id, time, purchaser, comment, amount "
+                     "FROM purchase_docs "
+                     "WHERE accounting_id = %s")
+            doc_type = 'purchase'
+        elif doc_type == 2:
+            query = ("SELECT id, time, payer, recipient, comment, amount "
+                     "FROM payment_docs "
+                     "WHERE accounting_id = %s")
+            doc_type = 'payment'
+        else:
+            print('Неверный тип документа')
+            return
+        docs = result(self.server.execute(query, self.accounting, fetchall=True))
+        for doc in docs:
+            if doc_type == 'purchase':
+                print(f"{doc['id']:06} от {str(doc['time'])[:-3]}: {doc['purchaser']}   "
+                      f"'{doc['comment']}'    {doc['amount']}")
+            else:
+                print(f"{doc['id']:06} от {str(doc['time'])[:-3]}: {doc['payer']} -> {doc['recipient']}   "
+                      f"'{doc['comment']}'    {doc['amount']}")
+        doc_id = int(input("ведите номер документа: "))
+        result(await self.server.del_doc(doc_id, doc_type))
+
     def reg_user(self):
         print('Регистрация нового пользователя')
         nic = input("ник (до 16 символов): ")
@@ -179,6 +207,7 @@ class DebtsCLI(object):
                       'расчет (accounting)            - выбрать или создать расчет \n'
                       'покупка (purchase)             - создать документ "Покупка" \n'
                       'платеж (payment)               - создать документ "Платеж" \n'
+                      'отмена (cancel)                - отменить документ \n'
                       'баланс (balance)               - посмотреть текущий баланс \n'
                       'кошельки (wallets)             - посмотреть баланс всех кошельков \n'
                       'объединить (merge)             - объединить кошельки \n'
@@ -200,6 +229,8 @@ class DebtsCLI(object):
                 await self.purchase()
             elif cmd.lower()[:3] in ('пла', 'pay'):
                 await self.add_payment()
+            elif cmd.lower()[:3] in ('отм', 'can'):
+                await self.cancel_doc()
             elif cmd.lower()[:3] in ('бал', 'bal'):
                 self.show_balance()
             elif cmd.lower()[:3] in ('кош', 'wal'):
