@@ -701,8 +701,8 @@ class DebtsServer(object):
             return result(self.execute(query, acc_id, fetchall=True))
 
     # noinspection PyTypeChecker
-    @try_and_log('Ошибка объединения кошельков')
-    def merge_wallets(self, acc_id, wallets_list, name=None):
+    @atry_and_log('Ошибка объединения кошельков')
+    async def merge_wallets(self, acc_id, wallets_list, name=None):
         """
         Объединяет список кошельков в один. \n
         Имя нового кошелька складывается из имен кошельков в списке, разделенных символом '+'
@@ -739,6 +739,18 @@ class DebtsServer(object):
                 result(self.execute(query, wallet['id']))
             self.connection.commit()
             self.logger.info(f"Удалены неиспользуемые кошельки {', '.join(map(str, wallets_list[1:]))}")
+
+            users = [{'user_id': user_id,
+                      'user_name': result(self.user_name(user_id)),
+                      'balance': balance}
+                     for user_id in result(self.wallet_users(acc_id, wallet=wallets[0]['id']))]
+            msg = (f"Расчет №{acc_id} '{result(self.accounting_name(acc_id))}',\n"
+                   f"Следующие кошельки объединены:\n")
+            for wallet in wallets:
+                msg += f"  {wallet['name']}\n"
+            msg += f"Название кошелька: '{name}'.\n"
+
+        await self.notice(users, msg, log_detail='об объедтнеии кошельков')
 
     @try_and_log('Ошибка выхода пользователя из кошелька')
     def leave_wallet(self, acc_id, user, name=None):
@@ -1228,7 +1240,7 @@ class DebtsServer(object):
         self.logger.info(f"Пользователю {doc['recipient']} отправлено уведомление о платеже {doc_id}")
         await self.msg_cbs(doc['recipient'], msg)
 
-    @atry_and_log("Ошибка отправки сообщения о платеже")
+    @atry_and_log("Ошибка отправки сообщения об отмне документа")
     async def notice_del_doc(self, users, msg_data):
         msg = (f"Расчет №{msg_data['acc_id']} '{msg_data['acc_name']}',\n"
                f"{msg_data['user_name']} отменил(а) {msg_data['doc_type']}\n"
@@ -1240,6 +1252,17 @@ class DebtsServer(object):
         for user in users:
             msg_tasks.append(asyncio.create_task(self.msg_cbs(user['user_id'],
                                                               msg + f"Ваш баланс: {user['balance']}")))
-            self.logger.info(f"Пользователю {user['user_id']} отправлено уведомление об отмене {msg_data['doc_id']}")
+            self.logger.info(f"Пользователю {user['user_id']} отправлено уведомление "
+                             f"об отмене документа {msg_data['doc_id']}")
+
+        await asyncio.gather(*msg_tasks)
+
+    @atry_and_log("Ошибка отправки сообщения о платеже")
+    async def notice(self, users, msg, log_detail=''):
+        msg_tasks = []
+        for user in users:
+            msg_tasks.append(asyncio.create_task(self.msg_cbs(user['user_id'],
+                                                              msg + f"Ваш баланс: {round(user['balance'], 2)}")))
+            self.logger.info(f"Пользователю {user['user_id']} отправлено уведомление " + log_detail)
 
         await asyncio.gather(*msg_tasks)

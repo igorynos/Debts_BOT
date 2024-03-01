@@ -38,7 +38,7 @@ async def add_name_wallet(call: types.CallbackQuery, state: FSMContext):
 async def finalize_merge_wallets(message: types.Message, state: FSMContext):
     await state.finish()
     acc = server.get_current_accounting(user=message.chat.id)
-    server.merge_wallets(
+    await server.merge_wallets(
         acc_id=acc[0], wallets_list=dict_wallets[f'{message.chat.id}'], name=message.text)
     await message.answer(text=f'Кошелёк "{message.text}" создан')
     await active_acc(message)
