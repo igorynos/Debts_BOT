@@ -398,7 +398,8 @@ class DebtsServer(object):
                     for user in users for i in range(3)]
             cursor.execute(query, args)
             self.connection.commit()
-            self.logger.info(f"К расчету {accounting_id} добавлены участники {', '.join(map(str, users))}")
+            self.logger.info(
+                f"К расчету {accounting_id} добавлены участники {', '.join(map(str, users))}")
             wallets = []
             for user in users:
                 wallets.append(result(self.new_wallet(user)))
@@ -564,7 +565,8 @@ class DebtsServer(object):
         Returns:
             int: ID кошелька в БД wallets.id
         """
-        self.logger.debug(f"Запрос на создаие нового кошелька. user={user}, name='{wallet_name}'")
+        self.logger.debug(
+            f"Запрос на создаие нового кошелька. user={user}, name='{wallet_name}'")
         with self.connection.cursor() as cursor:
             if wallet_name is None:
                 cursor.execute(
@@ -662,7 +664,8 @@ class DebtsServer(object):
         my_wallet = self.my_wallet(acc_id, user)[0]
         with self.connection.cursor():
             query = "SELECT DISTINCT wallet FROM wallet_users WHERE accounting_id = %s"
-            all_wallets = [wlt['wallet'] for wlt in result(self.execute(query, acc_id, fetchall=True))]
+            all_wallets = [wlt['wallet'] for wlt in result(
+                self.execute(query, acc_id, fetchall=True))]
             all_wallets.remove(my_wallet)
             return all_wallets
 
@@ -731,14 +734,17 @@ class DebtsServer(object):
                 if default_name:
                     name += '+' + wallet['name']
             query = "UPDATE wallets SET balance = %s, name = %s WHERE id = %s"
-            result(self.execute(query, (balance, name, wallets[0]['id']), commit=True))
-            self.logger.info(f"Кошельки {', '.join(map(str, wallets_list))} объединены под номером {wallets_list[0]}")
+            result(self.execute(
+                query, (balance, name, wallets[0]['id']), commit=True))
+            self.logger.info(
+                f"Кошельки {', '.join(map(str, wallets_list))} объединены под номером {wallets_list[0]}")
             self.logger.info(f"Название нового кошелька: '{name}'")
             for wallet in wallets[1:]:
                 query = "DELETE FROM wallets WHERE id = %s"
                 result(self.execute(query, wallet['id']))
             self.connection.commit()
-            self.logger.info(f"Удалены неиспользуемые кошельки {', '.join(map(str, wallets_list[1:]))}")
+            self.logger.info(
+                f"Удалены неиспользуемые кошельки {', '.join(map(str, wallets_list[1:]))}")
 
     @try_and_log('Ошибка выхода пользователя из кошелька')
     def leave_wallet(self, acc_id, user, name=None):
@@ -765,11 +771,14 @@ class DebtsServer(object):
                 else:
                     name = result(self.wallet_name(wallet))
             query = "SELECT balance FROM user_balance WHERE accounting_id = %s AND user_id = %s"
-            user_balance = result(self.execute(query, (acc_id, user), fetchone=True))['balance']
+            user_balance = result(self.execute(
+                query, (acc_id, user), fetchone=True))['balance']
             query = "SELECT user_nic FROM users WHERE id = %s"
-            user_nic = result(self.execute(query, user, fetchone=True))['user_nic']
+            user_nic = result(self.execute(query, user, fetchone=True))[
+                'user_nic']
             query = "SELECT balance FROM wallets WHERE id = %s"
-            wallet_balance = result(self.execute(query, wallet, fetchone=True))['balance']
+            wallet_balance = result(self.execute(
+                query, wallet, fetchone=True))['balance']
             query = "INSERT INTO wallets (balance, name) VALUES (%s, %s)"
             cursor.execute(query, (user_balance, user_nic))
             self.connection.commit()
@@ -781,7 +790,8 @@ class DebtsServer(object):
             query = "UPDATE wallet_users SET wallet = %s WHERE user_id = %s AND accounting_id = %s"
             result(self.execute(query, (new_wallet, user, acc_id), commit=True))
             self.logger.info(f"Пользователю {user} вышел из кошелька {wallet}")
-            self.logger.info(f"Кошелькам присвоены названия '{name}' и '{user_nic}'")
+            self.logger.info(
+                f"Кошелькам присвоены названия '{name}' и '{user_nic}'")
 
     # noinspection PyTypeChecker
     @try_and_log("Ошибка обновления баланса")
@@ -792,7 +802,8 @@ class DebtsServer(object):
         Args:
             acc_id (int): идентификатор расчета accountings.id
         """
-        self.logger.debug(f"Запрос на обновление баланса кошельков. acc_id={acc_id}")
+        self.logger.debug(
+            f"Запрос на обновление баланса кошельков. acc_id={acc_id}")
         with self.connection.cursor() as cursor:
             wallets = result(self.get_wallet_balance(acc_id))
             for wallet in wallets:
@@ -861,7 +872,8 @@ class DebtsServer(object):
             query = "UPDATE purchase_docs SET bnfcr_group = %s WHERE id = %s"
             cursor.execute(query, [bnfcr, doc])
             self.connection.commit()
-            self.logger.info(f"Пользователь {user} добавлен к списку бенефициаров документа покупки {doc}")
+            self.logger.info(
+                f"Пользователь {user} добавлен к списку бенефициаров документа покупки {doc}")
             self.post_purchase_doc(acc_id, doc, reject=False)
 
     # noinspection PyTypeChecker
@@ -962,7 +974,8 @@ class DebtsServer(object):
                         'comment': doc['comment']}
 
             query = f"SELECT accounting_id FROM {doc_type}_docs WHERE id = %s"
-            acc_id = result(self.execute(query, doc_id, fetchone=True))['accounting_id']
+            acc_id = result(self.execute(query, doc_id, fetchone=True))[
+                'accounting_id']
             balance1 = result(self.user_wallet_balance(acc_id))
             if doc_type == 'purchase':
                 result(self.post_purchase_doc(acc_id, doc_id, reject=True))
@@ -995,16 +1008,20 @@ class DebtsServer(object):
             cursor.execute(query, doc_id)
             document = cursor.fetchone()
             query = "SELECT user_id FROM beneficiaries WHERE bnfcr_group = %s"
-            users = result(self.execute(query, document['bnfcr_group'], fetchall=True))
+            users = result(self.execute(
+                query, document['bnfcr_group'], fetchall=True))
             for user in users:
                 query = "SELECT balance FROM user_balance WHERE user_id = %s AND accounting_id = %s"
                 cursor.execute(query, [user['user_id'], acc_id])
-                user['balance'] = round(cursor.fetchone()['balance'] - sign * document['amount'] / len(users), 2)
+                user['balance'] = round(
+                    cursor.fetchone()['balance'] - sign * document['amount'] / len(users), 2)
                 if user['user_id'] == document['purchaser']:
                     user['balance'] += sign * document['amount']
                 query = "UPDATE user_balance SET balance = %s WHERE user_id = %s AND accounting_id = %s"
-                cursor.execute(query, [user['balance'], user['user_id'], acc_id])
-            cursor.execute("UPDATE purchase_docs SET posted = %s WHERE id = %s", [not reject, doc_id])
+                cursor.execute(
+                    query, [user['balance'], user['user_id'], acc_id])
+            cursor.execute("UPDATE purchase_docs SET posted = %s WHERE id = %s", [
+                           not reject, doc_id])
             self.connection.commit()
             self.update_wallet_balance(acc_id)
             if reject:
@@ -1045,7 +1062,8 @@ class DebtsServer(object):
             self.connection.commit()
             self.update_wallet_balance(acc_id)
             if reject:
-                self.logger.info(f"Отменено проведение документа пплатежа {doc_id}")
+                self.logger.info(
+                    f"Отменено проведение документа пплатежа {doc_id}")
             else:
                 self.logger.info(f"Проведен документ пплатежа {doc_id}")
 
@@ -1142,8 +1160,10 @@ class DebtsServer(object):
                         cursor.execute(query, (user['id'], acc_id))
                         user_sum = cursor.fetchone()['user_sum']
                         wallet_sum += user_sum
-                        report.write(f"    ИТОГО ({user['user_nic']}):   {user_sum} \n")
-                    report.write(f"    ИТОГО ({wallet['name']}):   {wallet_sum} \n")
+                        report.write(
+                            f"    ИТОГО ({user['user_nic']}):   {user_sum} \n")
+                    report.write(
+                        f"    ИТОГО ({wallet['name']}):   {wallet_sum} \n")
                 report.write(f"\nПЛАТЕЖИ\n")
                 for wallet in wallets:
                     query = ("SELECT users.id, users.user_nic FROM wallet_users "
@@ -1169,7 +1189,8 @@ class DebtsServer(object):
                 for wallet in wallets:
                     report.write(
                         f"  {wallet['name']}  -  {wallet['balance']} \n")
-                self.logger.info(f"Отчет по расчету {acc_id} сохранен в файле {file_name}")
+                self.logger.info(
+                    f"Отчет по расчету {acc_id} сохранен в файле {file_name}")
             return file_name
 
     ######################################################################
@@ -1192,7 +1213,8 @@ class DebtsServer(object):
                f"документ №{doc_id} от {str(doc['time'])[:-3]}\n")
 
         query = "SELECT user_id FROM beneficiaries WHERE bnfcr_group = %s AND user_id != %s"
-        res = result(self.execute(query, (doc['bnfcr_group'], doc['purchaser']), fetchall=True))
+        res = result(self.execute(
+            query, (doc['bnfcr_group'], doc['purchaser']), fetchall=True))
         bnfcrs = [user['user_id']
                   for user in res]
         msg_tasks = []
@@ -1200,8 +1222,10 @@ class DebtsServer(object):
             wallet = result(self.my_wallet(doc['accounting_id'], user))
             query = "SELECT balance FROM wallets WHERE id = %s"
             balance = result(self.execute(query, wallet, fetchone=True))
-            msg_tasks.append(asyncio.create_task(self.msg_cbs(user, msg + f"Ваш баланс: {balance['balance']}")))
-            self.logger.info(f"Пользователю {user} отправлено уведомление о покупке {doc_id}")
+            msg_tasks.append(asyncio.create_task(self.msg_cbs(
+                user, msg + f"Ваш баланс: {balance['balance']}")))
+            self.logger.info(
+                f"Пользователю {user} отправлено уведомление о покупке {doc_id}")
 
         await asyncio.gather(*msg_tasks)
 
@@ -1225,7 +1249,8 @@ class DebtsServer(object):
                f"документ №{doc_id} от {str(doc['time'])[:-3]}.\n"
                f"Ваш баланс: {balance['balance']}")
 
-        self.logger.info(f"Пользователю {doc['recipient']} отправлено уведомление о платеже {doc_id}")
+        self.logger.info(
+            f"Пользователю {doc['recipient']} отправлено уведомление о платеже {doc_id}")
         await self.msg_cbs(doc['recipient'], msg)
 
     @atry_and_log("Ошибка отправки сообщения о платеже")
@@ -1240,6 +1265,7 @@ class DebtsServer(object):
         for user in users:
             msg_tasks.append(asyncio.create_task(self.msg_cbs(user['user_id'],
                                                               msg + f"Ваш баланс: {user['balance']}")))
-            self.logger.info(f"Пользователю {user['user_id']} отправлено уведомление об отмене {msg_data['doc_id']}")
+            self.logger.info(
+                f"Пользователю {user['user_id']} отправлено уведомление об отмене {msg_data['doc_id']}")
 
         await asyncio.gather(*msg_tasks)
