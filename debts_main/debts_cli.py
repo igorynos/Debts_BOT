@@ -135,13 +135,13 @@ class DebtsCLI(object):
         return
 
     @check_accounting
-    def merge_wallets(self):
+    async def merge_wallets(self):
         print("В системе зарегиспрированы кошельки:")
         wallets = result(self.server.get_wallet_balance(self.accounting))
         for wallet in wallets:
             print(f"{wallet['id']}: {wallet['name']}")
         wallets_list = list(map(int, input("Перечислите через запятую номера объединяемых кошельков: ").split(',')))
-        result(self.server.merge_wallets(self.accounting, wallets_list))
+        result(await self.server.merge_wallets(self.accounting, wallets_list))
 
     @check_accounting
     def leave_wallet(self):
@@ -224,7 +224,7 @@ class DebtsCLI(object):
             elif cmd.lower()[:3] in ('рас', 'acc'):
                 self.accounting = self.choose_accounting()
             elif cmd.lower()[:3] in ('объ', 'mer'):
-                self.merge_wallets()
+                await self.merge_wallets()
             elif cmd.lower()[:3] in ('пок', 'pur'):
                 await self.purchase()
             elif cmd.lower()[:3] in ('пла', 'pay'):
