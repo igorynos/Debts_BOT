@@ -64,9 +64,9 @@ async def join_acc1(call: types.CallbackQuery, state: FSMContext):
 @dp.callback_query_handler(text='join_acc_no')
 async def join_acc2(call: types.CallbackQuery, state: FSMContext):
     if call.data == "join_acc_yes":
-        server.join_user(
+        await server.join_user(
             dict_temp_acc[f"{call.message.chat.id}"], call.message.chat.id, True)
     elif call.data == "join_acc_no":
-        server.join_user(
+        await server.join_user(
             dict_temp_acc[f"{call.message.chat.id}"], call.message.chat.id, False)
     await active_acc(call.message)

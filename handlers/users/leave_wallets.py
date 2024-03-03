@@ -37,7 +37,7 @@ async def accept_leave_wallets(message: types.Message):
 async def check_other_users(call: types.CallbackQuery):
     user = dict_user[f"{call.message.chat.id}"]
     if len(user.wallet_users) <= 2:
-        result = server.leave_wallet(user.acc, user.user_id)
+        result = await server.leave_wallet(user.acc, user.user_id)
         if result[1] == "OK":
             await call.message.answer(text=f'Вы покинули {user.wallet_name}')
         else:
@@ -55,7 +55,7 @@ async def exit_leave_wallet(call: types.CallbackQuery):
 @dp.callback_query_handler(text='change_wallname_yes')
 async def leave_wallet_old_name(call: types.CallbackQuery):
     user = dict_user[f"{call.message.chat.id}"]
-    server.leave_wallet(user.acc, user.user_id, user.wallet_name)
+    await server.leave_wallet(user.acc, user.user_id, user.wallet_name)
     await call.message.answer(text=f'Вы покинули {user.wallet_name}')
     await active_acc(call.message)
 
@@ -70,6 +70,6 @@ async def write_new_wallet_name(call: types.CallbackQuery, state: FSMContext):
 async def leave_wallet_new_name(message: types.Message, state: FSMContext):
     await state.finish()
     user = dict_user[f"{message.chat.id}"]
-    server.leave_wallet(user.acc, user.user_id, message.text)
+    await server.leave_wallet(user.acc, user.user_id, message.text)
     await message.answer(text=f'Вы покинули кошелёк {user.wallet_name}\n\nКошелёк {message.text} создан')
     await active_acc(message)

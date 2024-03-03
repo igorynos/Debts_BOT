@@ -95,13 +95,13 @@ class DebtsCLI(object):
         user_id = int(input("id: "))
         result(self.server.reg_user(user_id, nic))
 
-    @check_accounting
-    def join_user(self):
+    @acheck_accounting
+    async def join_user(self):
         usr = int(input("присоединить пользователя: "))
         if usr == 0:
             return
         recalc = input("учесть совершенные покупки? д/н (y/n)").lower()[:1] in ('д', 'y')
-        result(self.server.join_user(self.accounting, usr, recalc))
+        result(await self.server.join_user(self.accounting, usr, recalc))
 
     def choose_accounting(self):
         accountings = result(self.server.accounting_list('ACTIVE'))
@@ -144,14 +144,14 @@ class DebtsCLI(object):
         result(await self.server.merge_wallets(self.accounting, wallets_list))
 
     @check_accounting
-    def leave_wallet(self):
+    async def leave_wallet(self):
         cursor = self.server.connection.cursor()
         cursor.execute("SELECT id, user_nic FROM users")
         users = cursor.fetchall()
         for user in users:
             print(f"{user['id']}:  {user['user_nic']}")
         user = int(input("Выберите ID пользователя: "))
-        self.server.leave_wallet(self.accounting, user)
+        result(await self.server.leave_wallet(self.accounting, user))
 
     @check_accounting
     def show_balance(self):
@@ -220,7 +220,7 @@ class DebtsCLI(object):
             elif cmd.lower()[:3] in ('зар', 'рег', 'reg'):
                 self.reg_user()
             elif cmd.lower()[:3] in ('при', 'joi'):
-                self.join_user()
+                await self.join_user()
             elif cmd.lower()[:3] in ('рас', 'acc'):
                 self.accounting = self.choose_accounting()
             elif cmd.lower()[:3] in ('объ', 'mer'):
@@ -240,7 +240,7 @@ class DebtsCLI(object):
             elif cmd.lower()[:3] in ('чуж', 'oth'):
                 self.others_wallets()
             elif cmd.lower()[:3] in ('вый', 'lea'):
-                self.leave_wallet()
+                await self.leave_wallet()
             elif cmd.lower()[:3] in ('отч', 'rep'):
                 self.report()
             elif cmd.lower()[:3] in ('зак', 'clo'):
