@@ -30,5 +30,3 @@ async def del_docs(call: types.CallbackQuery, callback_data: dict):
     doc_type = callback_data.get('doc_type')
 
     await server.del_doc(doc_id=doc_id, doc_type=doc_type)
-
-    call.message.answer('Документ удалён')
