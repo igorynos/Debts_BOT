@@ -5,7 +5,8 @@ from keyboards.inline.callback_data import pay_lst_callback, merge_wallets_callb
 from loader import dp, server
 
 
-menu_acc = InlineKeyboardMarkup()
+purchase_payment = InlineKeyboardButton(
+    "💳 Покупки/Платежи", callback_data='purchase_payment')
 
 purchase = InlineKeyboardButton(
     "🛒 Покупки", callback_data='purchase')
@@ -13,20 +14,33 @@ purchase = InlineKeyboardButton(
 payment_doc = InlineKeyboardButton(
     "💸 Платёж", callback_data='payment_doc')
 
+del_doc = InlineKeyboardButton(
+    "❌ Отмена документа", callback_data='del_doc')
+
+
+wallets = InlineKeyboardButton(
+    "👛 Кошельки", callback_data='wallets')
+
+wallets_balance = InlineKeyboardButton(
+    "💰 Баланс", callback_data='wallets_balance')
+
 merge_wallets = InlineKeyboardButton(
     "➕ Объединить кошельки", callback_data='merge_wallets')
 
 leave_wallets = InlineKeyboardButton(
     "➖ Покинуть кошелёк", callback_data='leave_wallet')
 
-wallets_balance = InlineKeyboardButton(
-    "👛 Кошельки", callback_data='wallets_balance')
 
 total = InlineKeyboardButton(
     "📋 Отчёт", callback_data='total')
 
-menu_acc = InlineKeyboardMarkup().add(purchase, payment_doc).add(
-    merge_wallets, leave_wallets).add(wallets_balance, total)
+menu_acc = InlineKeyboardMarkup().add(
+    purchase_payment).add(wallets).add(total)
+
+menu_docs = InlineKeyboardMarkup().add(purchase, payment_doc).add(del_doc)
+
+menu_wallets = InlineKeyboardMarkup().add(wallets_balance).add(
+    merge_wallets, leave_wallets)
 
 
 def pay_lst(message: types.Message):

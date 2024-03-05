@@ -6,6 +6,7 @@ from . import payment_doc
 from . import merge_wallets
 from . import leave_wallets
 from . import active_acc
+from . import delete_docs
 from . import total
 from . import help
 from . import start

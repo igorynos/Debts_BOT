@@ -11,3 +11,6 @@ merge_wallets_callback = CallbackData(
 
 bnfcrs_callback = CallbackData(
     'bnfcrs_callback', "id")
+
+del_docs_callback = CallbackData(
+    'del_docs_callback', "id", "doc_type")

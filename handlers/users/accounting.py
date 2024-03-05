@@ -1,14 +1,25 @@
-from loader import dp, server
+from loader import dp, server, bot
 from aiogram import types
 from aiogram.dispatcher.storage import FSMContext
 
 from keyboards.inline.lst_accounting import accounting_list_active, join_acc_1, join_acc_2
+from keyboards.inline.menu_acc import menu_docs, menu_wallets
 from keyboards.inline.callback_data import accounting_callback
 from handlers.users.active_acc import active_acc
 
 dict_new_acc = {}
 dict_acc_name = {}
 dict_temp_acc = {}
+
+
+@dp.callback_query_handler(text='purchase_payment')
+async def menu_purchase_payment(call: types.CallbackQuery):
+    await bot.send_message(chat_id=call.message.chat.id, text='Выберите действие:', reply_markup=menu_docs)
+
+
+@dp.callback_query_handler(text='wallets')
+async def wallets_menu(call: types.CallbackQuery):
+    await bot.send_message(chat_id=call.message.chat.id, text='Выберите действие:', reply_markup=menu_wallets)
 
 
 @dp.callback_query_handler(text='create_new_accounting_cansel')
