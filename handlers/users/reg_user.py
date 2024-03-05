@@ -15,6 +15,7 @@ async def name_acc(message: types.Message, state: FSMContext):
     nic = message.text
     await state.finish()
     result = server.reg_user(user_id=message.chat.id, nic=nic)
+    print(result)
     if result[1] == 'OK':
         await message.answer(
             f"Зарегистрирован новый пользователь {nic}", reply_markup=main_menu(message=message))

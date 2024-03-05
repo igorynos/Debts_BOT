@@ -8,3 +8,6 @@ pay_lst_callback = CallbackData(
 
 merge_wallets_callback = CallbackData(
     'merge_wallets_callback', "id")
+
+bnfcrs_callback = CallbackData(
+    'bnfcrs_callback', "id")
