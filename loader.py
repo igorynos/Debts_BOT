@@ -7,4 +7,10 @@ from data import config
 bot = Bot(token=config.BOT_TOKEN, parse_mode=types.ParseMode.HTML)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
-server = DebtsServer()
+
+
+async def sunc_send_message_for_all(user, msg):
+    await bot.send_message(user, msg)
+
+
+server = DebtsServer(msg_cbs=sunc_send_message_for_all)
