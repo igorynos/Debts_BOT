@@ -15,11 +15,13 @@ async def del_doc(call: types.CallbackQuery):
     user_id = call.message.chat.id
     if call.data == 'del_docs_purch':
         doc_type = 'purchase'
+        user_type = 'purchaser'
     else:
         doc_type = 'payment'
+        user_type = 'payer'
 
     acc = server.get_current_accounting(user_id)[0]
-    query = f"SELECT id, comment, amount, time FROM {doc_type}_docs WHERE accounting_id = {acc}"
+    query = f"SELECT id, comment, amount, time FROM {doc_type}_docs WHERE accounting_id = {acc} AND {user_type} = {user_id}"
     result = server.execute(query, fetchall=True)[0]
     await bot.send_message(chat_id=user_id, text='Выберите документ', reply_markup=choise_docs_to_del(call.message, result, doc_type))
 
