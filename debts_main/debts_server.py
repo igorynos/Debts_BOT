@@ -993,7 +993,7 @@ class DebtsServer(object):
 
         users = list(balance2)
         for i in range(len(balance1)):
-            if abs(balance1[i]['balance'] - balance2[i]['balance']) < 1 or balance1[i]['user_id'] == doc['user']:
+            if abs(balance1[i]['balance'] - balance2[i]['balance']) < 1:
                 users.remove(balance2[i])
         result(await self.notice_del_doc(users, msg_data))
 
@@ -1119,7 +1119,7 @@ class DebtsServer(object):
         """
         if not os.path.isdir("Reports"):
             os.mkdir("Reports")
-        with self.connection.cursor() as cursor:
+        with (self.connection.cursor() as cursor):
             query = "SELECT name, start_time, end_time FROM accountings WHERE id = %s"
             cursor.execute(query, acc_id)
             res = cursor.fetchone()
@@ -1133,37 +1133,60 @@ class DebtsServer(object):
                          f"{datetime.now().hour:02}{datetime.now().minute:02}{datetime.now().second:02}"
                          f"{(datetime.now().microsecond//10000):02}.txt").replace(' ', '_')
             with open(f"Reports/{file_name}", 'w', encoding='utf-8') as report:
+                # Шапка отчета
                 report.write(f'Отчет по расчету "{res["name"]}" \n')
                 report.write(f'время начала: {res["start_time"]} \n')
                 report.write(
                     f'время окончания: {res["end_time"] if res["end_time"] is not None else "-" } \n')
+                # Находим списов бенефициаров соответствующий полному составу групы
+                full_group = result(self.beneficiaries(result(self.get_group_users(acc_id))))
                 report.write(f"\nПОКУПКИ\n")
-                for wallet in wallets:
-                    wallet_sum = 0
-                    query = ("SELECT users.id, users.user_nic FROM wallet_users "
-                             "JOIN users ON users.id = wallet_users.user_id "
-                             "WHERE wallet = %s")
-                    cursor.execute(query, wallet['wallet'])
-                    users = cursor.fetchall()
-                    for user in users:
-                        query = ("SELECT id, time, comment, amount FROM purchase_docs "
-                                 "WHERE accounting_id = %s AND purchaser = %s")
-                        cursor.execute(query, (acc_id, user['id']))
-                        docs = cursor.fetchall()
-                        if len(docs) == 0:
-                            continue
-                        report.write(f"  Покупки {user['user_nic']} \n")
-                        for doc in docs:
-                            report.write(
-                                f"    {doc['id']:06} от {str(doc['time'])[:-3]} \n"
-                                f"{' '*10}{doc['comment']}:   {doc['amount']} \n")
-                        query = ("SELECT SUM(amount) as user_sum FROM purchase_docs "
-                                 "WHERE purchaser = %s AND accounting_id = %s")
-                        cursor.execute(query, (user['id'], acc_id))
-                        user_sum = cursor.fetchone()['user_sum']
-                        wallet_sum += user_sum
-                        report.write(f"    ИТОГО ({user['user_nic']}):   {user_sum} \n")
-                    report.write(f"    ИТОГО ({wallet['name']}):   {wallet_sum} \n")
+                query = "SELECT DISTINCT bnfcr_group FROM purchase_docs WHERE accounting_id = %s"
+                bnfcr_groups = [bg['bnfcr_group']
+                                for bg in result(self.execute(query, acc_id, fetchall=True))]
+
+                bnfcr_groups.remove(full_group)
+                # переносим полную группу в начало списка
+                bnfcr_groups = [full_group] + bnfcr_groups
+                for i, bnfcr_group in enumerate(bnfcr_groups):
+                    if i == 0:
+                        group_name = 'всех'
+                    else:
+                        query = ("SELECT user_nic FROM users "
+                                 "JOIN beneficiaries ON users.id = beneficiaries.user_id "
+                                 "WHERE beneficiaries.bnfcr_group = %s")
+                        group_name = ','.join([user['user_nic']
+                                               for user in result(self.execute(query, bnfcr_group, fetchall=True))])
+                    report.write(f"\nПокупки, сделанные для {group_name}\n")
+                    for wallet in wallets:
+                        wallet_sum = 0
+                        query = ("SELECT users.id, users.user_nic FROM wallet_users "
+                                 "JOIN users ON users.id = wallet_users.user_id "
+                                 "WHERE wallet = %s")
+                        cursor.execute(query, wallet['wallet'])
+                        users = cursor.fetchall()
+                        for user in users:
+                            query = ("SELECT id, time, comment, amount FROM purchase_docs "
+                                     "WHERE accounting_id = %s AND bnfcr_group = %s AND purchaser = %s")
+                            cursor.execute(query, (acc_id, bnfcr_group, user['id']))
+                            docs = cursor.fetchall()
+                            if len(docs) == 0:
+                                continue
+                            report.write(f"  Покупки {user['user_nic']} \n")
+                            for doc in docs:
+                                report.write(
+                                    f"    {doc['id']:06} от {str(doc['time'])[:-3]} \n"
+                                    f"{' '*10}{doc['comment']}:   {doc['amount']} \n")
+                            query = ("SELECT SUM(amount) as user_sum FROM purchase_docs "
+                                     "WHERE purchaser = %s AND accounting_id = %s")
+                            cursor.execute(query, (user['id'], acc_id))
+                            user_sum = cursor.fetchone()['user_sum']
+                            wallet_sum += user_sum
+                            report.write(f"    ИТОГО ({user['user_nic']}):   {user_sum} \n")
+                        query = "SELECT COUNT(user_id) as cnt FROM wallet_users WHERE wallet = %s"
+                        cnt = result(self.execute(query, wallet['wallet'], fetchone=True))['cnt']
+                        if cnt > 1 and wallet_sum > 0:
+                            report.write(f"    ИТОГО ({wallet['name']}):   {wallet_sum} \n")
                 report.write(f"\nПЛАТЕЖИ\n")
                 for wallet in wallets:
                     query = ("SELECT users.id, users.user_nic FROM wallet_users "
@@ -1206,7 +1229,7 @@ class DebtsServer(object):
         doc = result(self.execute(query, doc_id, fetchone=True))
 
         msg = (f"Расчет '{doc['acc_name']}'\n"
-               f"{result(self.user_name(doc['purchaser']))} совершил покупку\n"
+               f"{result(self.user_name(doc['purchaser']))} совершил(а) покупку\n"
                f"{doc['comment']},\n"
                f"на сумму {doc['amount']}\n"
                f"документ №{doc_id} от {str(doc['time'])[:-3]}\n")
@@ -1248,7 +1271,7 @@ class DebtsServer(object):
         self.logger.info(f"Пользователю {doc['recipient']} отправлено уведомление о платеже {doc_id}")
         await self.msg_cbs(doc['recipient'], msg)
 
-    @atry_and_log("Ошибка отправки сообщения об отмне документа")
+    @atry_and_log("Ошибка отправки сообщения об отмене документа")
     async def notice_del_doc(self, users, msg_data):
         msg = (f"Расчет №{msg_data['acc_id']} '{msg_data['acc_name']}',\n"
                f"{msg_data['user_name']} отменил(а) {msg_data['doc_type']}\n"
