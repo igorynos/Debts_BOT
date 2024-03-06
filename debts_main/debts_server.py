@@ -936,7 +936,7 @@ class DebtsServer(object):
                 if abs(balance1[i]['balance'] - balance2[i]['balance']) < 1:
                     users.remove(balance2[i])
 
-            await self.notice(users, msg, log_detail="о платеже")
+            await self.notice(users, msg, log_detail="о покупке")
             return doc_id
 
     # noinspection PyTypeChecker
