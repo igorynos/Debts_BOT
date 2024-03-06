@@ -974,7 +974,7 @@ class DebtsServer(object):
             msg = (f"Расчет №{acc_id} '{result(self.accounting_name(acc_id))}',\n"
                    f"платеж {result(self.user_name(payer))} -> {result(self.user_name(recipient))},\n"
                    f"сумма: {amount},\n"
-                   f"комментарий: {comment}\n"
+                   f"коммент.: {comment}\n"
                    f"документ №{doc_id} от {str(doc_time)[:-3]}.\n")
 
             balance2 = result(self.user_wallet_balance(acc_id))
@@ -1018,7 +1018,7 @@ class DebtsServer(object):
                f"{user_name} отменил(а) {'покупку' if doc_type == 'purchase' else 'платеж'}\n"
                f"документ №{doc_id} от  {str(doc['time'])[:-3]}\n"
                f"сумма: {doc['amount']},\n"
-               f"комментарий: {doc['comment']}\n")
+               f"коммент.: {doc['comment']}\n")
 
         balance2 = result(self.user_wallet_balance(acc_id))
         users = list(balance2)
