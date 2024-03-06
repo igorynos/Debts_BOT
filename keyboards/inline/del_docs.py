@@ -5,6 +5,10 @@ delete_docs = InlineKeyboardMarkup().add(InlineKeyboardButton(
     "Покуки", callback_data='del_docs_purch'), InlineKeyboardButton(
         "Платежи", callback_data='del_docs_pay'))
 
+accept_delete_docs = InlineKeyboardMarkup().add(InlineKeyboardButton(
+    "Да", callback_data='del_yes'), InlineKeyboardButton(
+        "Нет", callback_data='del_no'))
+
 
 def choise_docs_to_del(message, lst_docs, doc_type):
     choise_docs = InlineKeyboardMarkup()

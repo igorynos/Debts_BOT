@@ -1,7 +1,10 @@
 from loader import dp, server, bot
 from aiogram import types
-from keyboards.inline.del_docs import delete_docs, choise_docs_to_del
+from keyboards.inline.del_docs import delete_docs, accept_delete_docs, choise_docs_to_del
 from keyboards.inline.callback_data import del_docs_callback
+from handlers.users.active_acc import active_acc
+
+dict_del_doc = {}
 
 
 @dp.callback_query_handler(text='del_doc')
@@ -27,8 +30,25 @@ async def del_doc(call: types.CallbackQuery):
 
 
 @dp.callback_query_handler(del_docs_callback.filter())
-async def del_docs(call: types.CallbackQuery, callback_data: dict):
-    doc_id = callback_data.get('id')
+async def accept_del_docs(call: types.CallbackQuery, callback_data: dict):
+    dict_del_doc[call.message.chat.id] = callback_data
     doc_type = callback_data.get('doc_type')
+    doc_id = callback_data.get('id')
+    query = f"SELECT comment, amount FROM {doc_type}_docs WHERE id = {doc_id}"
+    result = server.execute(query, fetchone=True)[0]
+    await call.message.answer(f"Вы действительно хотите удалить документ '{result['comment']} - {result['amount']}'?", reply_markup=accept_delete_docs)
 
-    await server.del_doc(doc_id=doc_id, doc_type=doc_type)
+
+@dp.callback_query_handler(text='del_yes')
+@dp.callback_query_handler(text='del_no')
+async def del_docs(call: types.CallbackQuery):
+    if call.data == 'del_yes':
+        data = dict_del_doc[call.message.chat.id]
+        doc_id = data['id']
+        doc_type = data['doc_type']
+        await call.message.answer(f"Документ удалён")
+        await server.del_doc(doc_id=doc_id, doc_type=doc_type)
+        await active_acc(call.message)
+    else:
+        dict_del_doc[call.message.chat.id] = None
+        await active_acc(call.message)
