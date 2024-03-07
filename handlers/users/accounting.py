@@ -1,14 +1,25 @@
-from loader import dp, server
+from loader import dp, server, bot
 from aiogram import types
 from aiogram.dispatcher.storage import FSMContext
 
 from keyboards.inline.lst_accounting import accounting_list_active, join_acc_1, join_acc_2
+from keyboards.inline.menu_acc import menu_docs, menu_wallets
 from keyboards.inline.callback_data import accounting_callback
 from handlers.users.active_acc import active_acc
 
 dict_new_acc = {}
 dict_acc_name = {}
 dict_temp_acc = {}
+
+
+@dp.callback_query_handler(text='purchase_payment')
+async def menu_purchase_payment(call: types.CallbackQuery):
+    await bot.send_message(chat_id=call.message.chat.id, text='Выберите действие:', reply_markup=menu_docs)
+
+
+@dp.callback_query_handler(text='wallets')
+async def wallets_menu(call: types.CallbackQuery):
+    await bot.send_message(chat_id=call.message.chat.id, text='Выберите действие:', reply_markup=menu_wallets)
 
 
 @dp.callback_query_handler(text='create_new_accounting_cansel')
@@ -51,9 +62,8 @@ async def accounting(call: types.CallbackQuery, callback_data: dict, state: FSMC
 @dp.callback_query_handler(text='join_acc')
 async def join_acc1(call: types.CallbackQuery, state: FSMContext):
     obj = server.check_user(
-        acc_id=dict_temp_acc[f"{call.message.chat.id}"], user=call.message.chat.id)
-    print(obj)
-    if obj[1] == 'OK':
+        acc_id=dict_temp_acc[f"{call.message.chat.id}"], user=call.message.chat.id)[0]
+    if obj:
         server.set_current_accounting(
             acc_id=dict_temp_acc[f"{call.message.chat.id}"], user=call.message.chat.id)
         await active_acc(call.message)
@@ -65,9 +75,9 @@ async def join_acc1(call: types.CallbackQuery, state: FSMContext):
 @dp.callback_query_handler(text='join_acc_no')
 async def join_acc2(call: types.CallbackQuery, state: FSMContext):
     if call.data == "join_acc_yes":
-        server.join_user(
+        await server.join_user(
             dict_temp_acc[f"{call.message.chat.id}"], call.message.chat.id, True)
     elif call.data == "join_acc_no":
-        server.join_user(
+        await server.join_user(
             dict_temp_acc[f"{call.message.chat.id}"], call.message.chat.id, False)
     await active_acc(call.message)

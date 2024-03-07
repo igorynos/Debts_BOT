@@ -32,14 +32,20 @@ async def payment_doc4(message: types.Message, state: FSMContext):
     data = await state.get_data()
     await state.finish()
     acc_id = server.get_current_accounting(user=message.chat.id)
-    acc_id = int(acc_id[0])
-    payer = int(message.chat.id)
-    rec = int(data['rec'])
-    amount = float(data['sum'].replace(',', '.'))
-    comment = message.text
 
-    server.add_payment_doc(
-        acc_id=acc_id, recipient=rec, payer=payer, amount=amount, comment=comment)
-    nic = server.user_name(rec)[0]
-    await message.answer(f'Перевод пользователю {nic} на сумму {amount} совершён')
+    try:
+        acc_id = int(acc_id[0])
+        payer = int(message.chat.id)
+        rec = int(data['rec'])
+        amount = float(data['sum'].replace(',', '.'))
+        comment = message.text
+        result = await server.add_payment_doc(
+            acc_id=acc_id, recipient=rec, payer=payer, amount=amount, comment=comment)
+        if result[1] != 'OK':
+            raise Exception
+        nic = server.user_name(rec)[0]
+        await message.answer(f'Перевод пользователю {nic} на сумму {amount} совершён')
+    except:
+        await message.answer(f'Произошла ошибка!\nПроверьте данные ввода')
+
     await active_acc(message)
