@@ -1210,15 +1210,15 @@ class DebtsServer(object):
                                     f"    {doc['id']:06} от {str(doc['time'])[:-3]} \n"
                                     f"{' '*10}{doc['comment']}:   {doc['amount']} \n")
                             query = ("SELECT SUM(amount) as user_sum FROM purchase_docs "
-                                     "WHERE purchaser = %s AND accounting_id = %s")
-                            cursor.execute(query, (user['id'], acc_id))
+                                     "WHERE accounting_id = %s AND bnfcr_group = %s AND purchaser = %s")
+                            cursor.execute(query, (acc_id, bnfcr_group, user['id']))
                             user_sum = cursor.fetchone()['user_sum']
                             wallet_sum += user_sum
-                            report.write(f"    ИТОГО ({user['user_nic']}):   {user_sum} \n")
+                            report.write(f"    ИТОГО ({user['user_nic']}):   {user_sum} \n \n")
                         query = "SELECT COUNT(user_id) as cnt FROM wallet_users WHERE wallet = %s"
                         cnt = result(self.execute(query, wallet['wallet'], fetchone=True))['cnt']
                         if cnt > 1 and wallet_sum > 0:
-                            report.write(f"    ИТОГО ({wallet['name']}):   {wallet_sum} \n")
+                            report.write(f"    ИТОГО ({wallet['name']}):   {wallet_sum} \n \n")
                 report.write(f"\nПЛАТЕЖИ\n")
                 for wallet in wallets:
                     query = ("SELECT users.id, users.user_nic FROM wallet_users "
